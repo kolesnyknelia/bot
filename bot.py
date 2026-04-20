@@ -155,10 +155,23 @@ async def setmanual_command(update: Update, context: ContextTypes.DEFAULT_TYPE) 
         "ціна 12.8 юаня, вага 165 грам"
     )
 
-
 async def handle_manual_text(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
     user_id = update.effective_user.id
     text = update.message.text.strip()
+
+    if text == "📦 Розрахувати товар":
+        USER_DRAFTS.setdefault(user_id, {})
+        USER_DRAFTS[user_id]["awaiting_manual"] = True
+        await update.message.reply_text("Введи дані у форматі: ціна 12.8 юаня, вага 165 грам")
+        return
+
+    if text == "📊 Аналіз товару":
+        await update.message.reply_text("Надішли фото товару або скрін з 1688 📸")
+        return
+
+    if text == "💬 Питання":
+        await update.message.reply_text("Напиши своє питання 👇")
+        return
 
     draft = USER_DRAFTS.get(user_id, {})
     if not draft.get("awaiting_manual"):
