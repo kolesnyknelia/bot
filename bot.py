@@ -10,7 +10,7 @@ from typing import Optional
 from dotenv import load_dotenv
 from openai import OpenAI
 from pydantic import BaseModel, Field
-from telegram import Update
+from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
     CommandHandler,
@@ -103,15 +103,18 @@ def calculate_costs(title: Optional[str], purchase_price: float, currency: str, 
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
-    text = (
-        "Привіт. Я бот для розрахунку собівартості товару.\n\n"
-        "Що я можу:\n"
-        "— по фото або скріну спробувати знайти ціну і вагу\n"
-        "— порахувати собівартість морем та авіа\n"
-        "— додати викуп автоматично\n\n"
-        "Надішли фото товару або скрін з 1688."
+    keyboard = [
+        ["📦 Розрахувати товар"],
+        ["📊 Аналіз товару"],
+        ["💬 Питання"]
+    ]
+
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+
+    await update.message.reply_text(
+        "Привіт 👋 Обери дію:",
+        reply_markup=reply_markup
     )
-    await update.message.reply_text(text)
 
 
 async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE) -> None:
