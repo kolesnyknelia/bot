@@ -34,54 +34,214 @@ SEA_USD_PER_KG = 5
 AIR_USD_PER_KG = 15
 
 FAQ_MODULE_1 = {
-    "❓ Таблиця не копіюється": "Зайди через Google Chrome і авторизуйся в Google. Далі: Файл → Зробити копію.",
-    "❓ З якої сторінки запуск": "Рекламу запускаємо тільки з бізнес-сторінки (fan page). Особистий профіль не використовується.",
-    "❓ З якого пристрою": "Працюємо тільки з комп’ютера або ноутбука. Телефон — тільки для перевірки.",
-    "❓ Табличка разово?": "Ні. Це твій постійний робочий інструмент.",
-    "❓ Всі товари одразу?": "Ні. Тестуємо по одному товару.",
-    "❓ Чи конкуренти Rozetka": "Ні. Наші конкуренти — лендінги + реклама FB/Instagram.",
-    "❓ Як порахувати вагу": "Шукай у інших продавців, через Google по фото або на AliExpress.",
-    "❓ Спочатку купуємо?": "Ні. Спочатку тест, потім викуп.",
+    "❓ Таблиця не копіюється": (
+        "Щоб відкрити Google Таблицю:\n\n"
+        "1. Зайдіть у браузер Google Chrome\n"
+        "2. Обовʼязково авторизуйтесь у своєму Google-акаунті\n\n"
+        "Далі:\n"
+        "3. Відкрийте посилання, яке я даю\n"
+        "4. Таблиця відкриється саме в браузері\n"
+        "5. Натисніть: Файл → Зробити копію\n\n"
+        "❗ Якщо ви не авторизовані в Google — таблиця не відкриється повноцінно "
+        "і кнопки «Зробити копію» не буде."
+    ),
+    "❓ З якої сторінки запуск": (
+        "Рекламу у Facebook ми не запускаємо з особистої сторінки.\n\n"
+        "❌ Особиста сторінка — це ваш профіль (ім’я і прізвище)\n"
+        "✅ Рекламу запускаємо тільки з бізнес-сторінки (fan page)\n\n"
+        "Особистий акаунт потрібен тільки для:\n"
+        "- входу в Facebook\n"
+        "- доступу до рекламного кабінету\n"
+        "- створення бізнес-сторінки\n"
+        "- управління рекламою\n\n"
+        "📌 Підсумок:\n"
+        "Реклама запускається тільки з бізнес-сторінки."
+    ),
+    "❓ З якого пристрою": (
+        "Ми працюємо з комп’ютера або ноутбука.\n\n"
+        "📱 Телефон використовується тільки для перевірки, "
+        "але не для налаштувань реклами.\n\n"
+        "💻 На комп’ютері або ноутбуці ви:\n"
+        "- заходите в Facebook-акаунт\n"
+        "- працюєте з рекламним кабінетом\n"
+        "- проходите всі налаштування по уроках\n\n"
+        "🔐 Важливий момент:\n"
+        "Ніхто не бачить ваш особистий профіль.\n"
+        "Люди бачать тільки бізнес-сторінку."
+    ),
+    "❓ Табличка разово?": (
+        "Google-таблиця з товарами — це не разове завдання, "
+        "а ваш основний робочий інструмент.\n\n"
+        "У товарному бізнесі табличка використовується постійно.\n\n"
+        "Ви будете:\n"
+        "- додавати нові товари\n"
+        "- аналізувати старі\n"
+        "- порівнювати між собою\n"
+        "- відсіювати слабкі\n"
+        "- повертатись до товарів знову\n\n"
+        "📌 Табличка — це ваша база, пам’ять і контроль."
+    ),
+    "❓ Всі товари одразу?": (
+        "Ні, всі товари одночасно ми не запускаємо.\n\n"
+        "✅ Правильно:\n"
+        "1. Обрали товар\n"
+        "2. Зробили сайт\n"
+        "3. Зробили креативи\n"
+        "4. Запустили рекламу\n\n"
+        "Якщо товар зайшов — працюємо з ним далі.\n"
+        "Якщо не зайшов — переходимо до наступного.\n\n"
+        "📌 Тестуємо товари тільки по черзі."
+    ),
+    "❓ Чи конкуренти Rozetka": (
+        "❌ Ні, маркетплейси не є нашими конкурентами.\n\n"
+        "Ми не порівнюємо ціни з Prom, Rozetka, OLX "
+        "і не орієнтуємось на їхні умови.\n\n"
+        "✅ Наші реальні конкуренти — це ті, хто продає "
+        "той самий товар через односторінкові сайти "
+        "і запускає рекламу у Facebook та Instagram.\n\n"
+        "Саме їх ми аналізуємо:\n"
+        "- сайти\n"
+        "- креативи\n"
+        "- подачу товару"
+    ),
+    "❓ Як порахувати вагу": (
+        "Якщо на 1688 не вказана вага — це нормально.\n\n"
+        "Що робимо:\n"
+        "1. Дивимось цього ж товару в інших продавців\n"
+        "2. Відкриваємо схожі оголошення\n"
+        "3. Шукаємо товар через Google по фото\n"
+        "4. Дивимось Amazon, AliExpress та інші сайти\n"
+        "5. Можна також запитати в ChatGPT\n\n"
+        "📌 Якщо ваги немає у одного продавця — шукаємо її в інших джерелах."
+    ),
+    "❓ Спочатку купуємо?": (
+        "❌ Ні, ми не закуповуємо товар наперед без тесту.\n\n"
+        "✅ Правильна логіка:\n"
+        "1. Обрали товар\n"
+        "2. Зробили сайт і креативи\n"
+        "3. Запустили рекламу\n"
+        "4. Якщо товар зайшов — робимо викуп\n\n"
+        "Якщо хочеться перевірити якість товару, можна:\n"
+        "- подивитися огляди на YouTube\n"
+        "- почитати відгуки на AliExpress\n"
+        "- замовити товар на себе для креативів\n\n"
+        "📌 Спочатку тест → потім викуп."
+    ),
 }
 
 FAQ_MODULE_2 = {
-    "❓ Скільки товарів в акаунті": "1 акаунт = 1 товар = 1 лендінг. Так безпечніше.",
-    "❓ Чи міняти піксель": "Ні. Піксель ставиться один раз і не змінюється.",
-    "❓ Коли новий піксель": "Тільки якщо інший рекламний акаунт.",
-    "❓ Чи вимикати рекламу при зміні сайту": "Ні. Сайт і реклама незалежні.",
-    "❓ Немає показів": "На нових акаунтах реклама може стартувати до 24 годин. Перевір дату і час.",
-    "❓ Коли вимикати рекламу": "Якщо 5$ витрат і 0 замовлень — вимикаємо.",
+    "❓ Скільки товарів в акаунті": (
+        "Теоретично в одному рекламному акаунті можна запускати різні товари "
+        "і різні лендінги. Але ми так не робимо.\n\n"
+        "Причина — ризики.\n\n"
+        "Якщо в одному акаунті 5 товарів і один порушить правила Facebook, "
+        "заблокувати можуть весь рекламний акаунт.\n\n"
+        "Тоді постраждають усі товари одразу.\n\n"
+        "✅ Ми працюємо так:\n"
+        "1 рекламний акаунт = 1 товар = 1 лендінг\n\n"
+        "Так безпечніше."
+    ),
+    "❓ Чи міняти піксель": (
+        "❌ Ні, кожного разу новий піксель ставити не потрібно.\n\n"
+        "Правильна схема:\n"
+        "1 рекламний акаунт = 1 товар = 1 лендінг = 1 піксель\n\n"
+        "Піксель ставиться на сайт один раз і далі залишається там постійно.\n"
+        "Рекламу можна запускати, зупиняти, перезапускати, міняти тексти "
+        "і креативи — піксель не чіпаємо."
+    ),
+    "❓ Коли новий піксель": (
+        "Новий піксель потрібен тільки в одному випадку:\n"
+        "якщо цей самий сайт ви підключаєте до іншого рекламного акаунту.\n\n"
+        "Кожен акаунт має свій власний піксель.\n\n"
+        "📌 Підсумок:\n"
+        "Піксель ставиться один раз на один товар.\n"
+        "Інший акаунт = інший піксель."
+    ),
+    "❓ Чи вимикати рекламу при зміні сайту": (
+        "❌ Ні, вимикати рекламу не потрібно.\n\n"
+        "Сайт і реклама — це окремі процеси.\n\n"
+        "Поки реклама працює, ви можете:\n"
+        "- змінювати тексти\n"
+        "- змінювати фото\n"
+        "- додавати блоки\n"
+        "- редагувати структуру\n\n"
+        "📌 Сайт можна змінювати, рекламу для цього вимикати не потрібно."
+    ),
+    "❓ Немає показів": (
+        "Якщо у вас новий рекламний акаунт — це нормальна ситуація.\n\n"
+        "Facebook не завжди запускає рекламу миттєво.\n"
+        "Вона може висіти без показів певний час, навіть якщо все налаштовано правильно.\n\n"
+        "Що перевірити:\n"
+        "- дату старту реклами\n"
+        "- час старту реклами\n\n"
+        "На нових акаунтах запуск може затягнутись до 24 годин.\n\n"
+        "📌 Підсумок:\n"
+        "Ставимо правильну дату і час та чекаємо приблизно добу."
+    ),
+    "❓ Коли вимикати рекламу": (
+        "Спочатку дивимось не на бюджет, а на відкрутку — скільки реально списалось.\n\n"
+        "Якщо гроші списуються — реклама працює.\n\n"
+        "Орієнтир:\n"
+        "- до 3$ → просто чекаємо\n"
+        "- 3–5$ → уже дивимось на результат\n\n"
+        "Якщо на 3$ уже є хоча б 1 замовлення — рекламу залишаємо.\n"
+        "Якщо відкрутка дійшла до 5$ і замовлень 0 — вимикаємо.\n\n"
+        "📌 Головне правило:\n"
+        "Реклама вважається робочою тільки тоді, коли є замовлення."
+    ),
 }
 
+
 def main_keyboard():
-    return ReplyKeyboardMarkup([
-        ["📦 Розрахувати товар", "💰 Маржа"],
-        ["❓ FAQ", "🎬 Креативи"],
-        ["📊 Аналіз", "💬 Питання"]
-    ], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [
+            ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
+            ["❓ FAQ", "🎬 Креативи"],
+            ["📊 Аналіз", "💬 Питання"],
+        ],
+        resize_keyboard=True
+    )
+
 
 def faq_keyboard():
-    return ReplyKeyboardMarkup([
-        ["📦 Модуль 1 — Пошук товарів"],
-        ["🎨 Модуль 2 — Сайт і креативи"],
-        ["⬅️ Назад"]
-    ], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [
+            ["📦 Модуль 1 — Пошук товарів"],
+            ["🎨 Модуль 2 — Сайт і креативи"],
+            ["⬅️ Назад"],
+        ],
+        resize_keyboard=True
+    )
+
 
 def module1_keyboard():
-    return ReplyKeyboardMarkup([[q] for q in FAQ_MODULE_1] + [["⬅️ Назад"]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [[q] for q in FAQ_MODULE_1.keys()] + [["⬅️ Назад"]],
+        resize_keyboard=True
+    )
+
 
 def module2_keyboard():
-    return ReplyKeyboardMarkup([[q] for q in FAQ_MODULE_2] + [["⬅️ Назад"]], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [[q] for q in FAQ_MODULE_2.keys()] + [["⬅️ Назад"]],
+        resize_keyboard=True
+    )
+
 
 def creatives_keyboard():
-    return ReplyKeyboardMarkup([
-        ["📌 Структура креативу"],
-        ["✍️ Приклади текстів"],
-        ["❌ Помилки"],
-        ["🔢 Скільки креативів"],
-        ["🤖 Генератор креативів"],
-        ["⬅️ Назад"]
-    ], resize_keyboard=True)
+    return ReplyKeyboardMarkup(
+        [
+            ["📌 Структура креативу"],
+            ["✍️ Приклади текстів"],
+            ["❌ Помилки"],
+            ["🔢 Скільки креативів"],
+            ["✅ Чек-лист"],
+            ["🤖 Генератор креативів"],
+            ["⬅️ Назад"],
+        ],
+        resize_keyboard=True
+    )
+
 
 def calculate_product_cost(price_yuan: float, weight_g: float) -> str:
     purchase_uah = price_yuan * CNY_TO_UAH
@@ -100,6 +260,7 @@ def calculate_product_cost(price_yuan: float, weight_g: float) -> str:
         f"✈️ Ціна товару з доставкою (авіа): {total_air:.2f} грн"
     )
 
+
 def parse_calc_input(text: str):
     parts = text.replace(",", ".").split()
     if len(parts) != 2:
@@ -109,6 +270,7 @@ def parse_calc_input(text: str):
     except ValueError:
         return None
 
+
 def parse_number(text: str):
     text = text.replace(",", ".").strip()
     try:
@@ -116,15 +278,6 @@ def parse_number(text: str):
     except ValueError:
         return None
 
-async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
-
-    if user_id not in AUTHORIZED_USERS:
-        USER_STATE[user_id] = "auth"
-        await update.message.reply_text("Введи код доступу 🔑")
-        return
-
-    await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
 
 async def generate_creatives(user_text: str) -> str:
     prompt = f"""
@@ -136,46 +289,88 @@ async def generate_creatives(user_text: str) -> str:
 3. 3 ідеї для відео-креативу
 
 Пиши просто, продаюче, без води.
+
 Товар / опис:
 {user_text}
 """
-    response = client.responses.create(
+    response = client.chat.completions.create(
         model="gpt-4.1-mini",
-        input=prompt
+        messages=[
+            {
+                "role": "system",
+                "content": "Ти сильний маркетинговий асистент для товарного бізнесу. Пиши українською мовою."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.8,
     )
-    return response.output_text
+    return response.choices[0].message.content
+
+
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user_id = update.effective_user.id
+
+    if user_id not in AUTHORIZED_USERS:
+        USER_STATE[user_id] = "auth"
+        await update.message.reply_text("Введи код доступу 🔑")
+        return
+
+    await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
+
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user = update.effective_user.id
+    user_id = update.effective_user.id
     text = update.message.text.strip()
 
-    if user not in AUTHORIZED_USERS:
+    # Авторизація
+    if user_id not in AUTHORIZED_USERS:
         if text in ACCESS_CODES:
-            AUTHORIZED_USERS.add(user)
-            USER_STATE[user] = None
+            AUTHORIZED_USERS.add(user_id)
+            USER_STATE[user_id] = None
             await update.message.reply_text("✅ Доступ відкрито", reply_markup=main_keyboard())
         else:
             await update.message.reply_text("❌ Невірний код")
         return
 
+    # FAQ
     if text == "❓ FAQ":
+        USER_STATE[user_id] = None
         await update.message.reply_text("Обери модуль", reply_markup=faq_keyboard())
         return
 
     if text == "📦 Модуль 1 — Пошук товарів":
+        USER_STATE[user_id] = None
         await update.message.reply_text("Модуль 1 👇", reply_markup=module1_keyboard())
         return
 
     if text == "🎨 Модуль 2 — Сайт і креативи":
+        USER_STATE[user_id] = None
         await update.message.reply_text("Модуль 2 👇", reply_markup=module2_keyboard())
         return
 
+    if text in FAQ_MODULE_1:
+        USER_STATE[user_id] = None
+        await update.message.reply_text(FAQ_MODULE_1[text])
+        return
+
+    if text in FAQ_MODULE_2:
+        USER_STATE[user_id] = None
+        await update.message.reply_text(FAQ_MODULE_2[text])
+        return
+
+    # Креативи
     if text == "🎬 Креативи":
+        USER_STATE[user_id] = None
         await update.message.reply_text("Обери 👇", reply_markup=creatives_keyboard())
         return
 
     if text == "📌 Структура креативу":
+        USER_STATE[user_id] = None
         await update.message.reply_text(
+            "🔥 Структура:\n\n"
             "1. Гачок (перші 2–3 секунди)\n"
             "2. Проблема\n"
             "3. Рішення\n"
@@ -185,8 +380,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "✍️ Приклади текстів":
+        USER_STATE[user_id] = None
         await update.message.reply_text(
-            "Приклади:\n\n"
+            "📢 Приклади:\n\n"
             "Втомилась від безладу у волоссі?\n"
             "Ця шпилька тримає весь день\n"
             "Легка, стильна і зручна\n"
@@ -195,8 +391,9 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "❌ Помилки":
+        USER_STATE[user_id] = None
         await update.message.reply_text(
-            "Помилки:\n"
+            "❌ Помилки:\n\n"
             "- немає гачка\n"
             "- довге відео\n"
             "- багато тексту\n"
@@ -205,11 +402,23 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if text == "🔢 Скільки креативів":
-        await update.message.reply_text("Роби 3–5 креативів на один товар")
+        USER_STATE[user_id] = None
+        await update.message.reply_text("👉 Робимо 3–5 креативів на товар")
+        return
+
+    if text == "✅ Чек-лист":
+        USER_STATE[user_id] = None
+        await update.message.reply_text(
+            "✔ Є гачок\n"
+            "✔ Є проблема\n"
+            "✔ Є рішення\n"
+            "✔ Є демонстрація\n"
+            "✔ Є заклик"
+        )
         return
 
     if text == "🤖 Генератор креативів":
-        USER_STATE[user] = "creative_generator"
+        USER_STATE[user_id] = "creative_generator"
         await update.message.reply_text(
             "Напиши коротко:\n"
             "що за товар, для кого він і яку проблему вирішує.\n\n"
@@ -218,111 +427,121 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    if text == "⬅️ Назад":
-        USER_STATE[user] = None
-        await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
-        return
-
-    if text in FAQ_MODULE_1:
-        await update.message.reply_text(FAQ_MODULE_1[text])
-        return
-
-    if text in FAQ_MODULE_2:
-        await update.message.reply_text(FAQ_MODULE_2[text])
-        return
-
+    # Розрахунок товару
     if text == "📦 Розрахувати товар":
-        USER_STATE[user] = "calc"
-        await update.message.reply_text("Введи: 5 130")
+        USER_STATE[user_id] = "calc"
+        await update.message.reply_text(
+            "Введи: 5 130\n\n"
+            "де:\n"
+            "5 — ціна в юанях\n"
+            "130 — вага в грамах"
+        )
         return
 
-    if USER_STATE.get(user) == "calc":
+    if USER_STATE.get(user_id) == "calc":
         parsed = parse_calc_input(text)
         if not parsed:
             await update.message.reply_text("Формат: 5 130")
             return
 
-        p, w = parsed
-        await update.message.reply_text(calculate_product_cost(p, w))
+        price_yuan, weight_g = parsed
+        await update.message.reply_text(calculate_product_cost(price_yuan, weight_g))
+        USER_STATE[user_id] = None
         return
 
-    if text == "💰 Маржа":
-        USER_STATE[user] = "m1"
-        USER_DATA[user] = {}
+    # Маржа
+    if text == "💰 Розрахувати маржу":
+        USER_STATE[user_id] = "margin_sale_price"
+        USER_DATA[user_id] = {}
         await update.message.reply_text("Введи ціну продажу в грн")
         return
 
-    if USER_STATE.get(user) == "m1":
-        value = parse_number(text)
-        if value is None:
-            await update.message.reply_text("Введи тільки число, наприклад 400")
+    if USER_STATE.get(user_id) == "margin_sale_price":
+        sale_price = parse_number(text)
+        if sale_price is None:
+            await update.message.reply_text("Введи тільки число, наприклад: 400")
             return
-        USER_DATA[user]["sale"] = value
-        USER_STATE[user] = "m2"
-        await update.message.reply_text("Введи собівартість в грн")
+
+        USER_DATA[user_id]["sale_price"] = sale_price
+        USER_STATE[user_id] = "margin_cost_price"
+        await update.message.reply_text("Введи собівартість товару з доставкою в грн")
         return
 
-    if USER_STATE.get(user) == "m2":
-        value = parse_number(text)
-        if value is None:
-            await update.message.reply_text("Введи тільки число, наприклад 100")
+    if USER_STATE.get(user_id) == "margin_cost_price":
+        cost_price = parse_number(text)
+        if cost_price is None:
+            await update.message.reply_text("Введи тільки число, наприклад: 300")
             return
-        USER_DATA[user]["cost"] = value
-        USER_STATE[user] = "m3"
-        await update.message.reply_text("Введи рекламу в доларах")
+
+        USER_DATA[user_id]["cost_price"] = cost_price
+        USER_STATE[user_id] = "margin_ads_dollars"
+        await update.message.reply_text("Введи ціну реклами / ліда в доларах")
         return
 
-    if USER_STATE.get(user) == "m3":
-        value = parse_number(text)
-        if value is None:
-            await update.message.reply_text("Введи тільки число, наприклад 2")
+    if USER_STATE.get(user_id) == "margin_ads_dollars":
+        ads_dollars = parse_number(text)
+        if ads_dollars is None:
+            await update.message.reply_text("Введи тільки число, наприклад: 2")
             return
 
-        ads = value * USD_TO_UAH
-        sale = USER_DATA[user]["sale"]
-        cost = USER_DATA[user]["cost"]
-        profit = sale - cost - ads
+        sale_price = USER_DATA[user_id]["sale_price"]
+        cost_price = USER_DATA[user_id]["cost_price"]
+        ads_uah = ads_dollars * USD_TO_UAH
+        profit = sale_price - cost_price - ads_uah
 
         await update.message.reply_text(
-            f"💰 Ціна продажу: {sale:.2f} грн\n"
-            f"📦 Собівартість: {cost:.2f} грн\n"
-            f"📢 Реклама: {value:.2f}$ = {ads:.2f} грн\n\n"
-            f"✅ Чистий прибуток: {profit:.2f} грн"
+            f"💰 Ціна продажу: {sale_price:.2f} грн\n"
+            f"📦 Повна собівартість: {cost_price:.2f} грн\n"
+            f"📢 Реклама / лід: {ads_dollars:.2f}$ = {ads_uah:.2f} грн\n\n"
+            f"✅ Маржа / чистий прибуток: {profit:.2f} грн"
         )
-        USER_STATE[user] = None
+
+        USER_STATE[user_id] = None
+        USER_DATA[user_id] = {}
         return
 
-    if USER_STATE.get(user) == "creative_generator":
+    # Генератор креативів
+    if USER_STATE.get(user_id) == "creative_generator":
         await update.message.reply_text("Генерую креативи... ⏳")
         try:
             result = await generate_creatives(text)
             await update.message.reply_text(result)
-        except Exception:
-            await update.message.reply_text("Не вдалося згенерувати. Спробуй ще раз.")
-        USER_STATE[user] = None
+        except Exception as e:
+            await update.message.reply_text(f"Помилка генерації: {str(e)}")
+        USER_STATE[user_id] = None
         return
 
+    # Аналіз / питання
     if text == "📊 Аналіз":
+        USER_STATE[user_id] = None
         await update.message.reply_text("Аналіз товару скоро додамо 📦")
         return
 
     if text == "💬 Питання":
+        USER_STATE[user_id] = "question"
         await update.message.reply_text("Напиши своє питання 👇")
-        USER_STATE[user] = "question"
         return
 
-    if USER_STATE.get(user) == "question":
+    if USER_STATE.get(user_id) == "question":
         await update.message.reply_text("Питання отримано ✅")
-        USER_STATE[user] = None
+        USER_STATE[user_id] = None
+        return
+
+    # Назад
+    if text == "⬅️ Назад":
+        USER_STATE[user_id] = None
+        await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
         return
 
     await update.message.reply_text("Обери кнопку 👇", reply_markup=main_keyboard())
+
 
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
     app.run_polling()
+
 
 if __name__ == "__main__":
     main()
