@@ -268,8 +268,8 @@ def main_keyboard():
         [
             ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
             ["❓ FAQ", "🎬 Креативи"],
-            ["📊 Аналіз", "💬 Питання"],
-            ["⚠️ Важлива інформація"],
+            ["📊 Аналіз", "🔍 Ключові слова"],
+            ["💬 Питання", "⚠️ Важлива інформація"],
         ],
         resize_keyboard=True
     )
@@ -456,6 +456,48 @@ async def analyze_product_from_photo(file_url: str) -> str:
                             "- на що саме звернути увагу при перевірці: кількість продавців, ціни, подача, акції, відгуки, наскільки товар виглядає перегрітим\n"
                             "- короткий висновок: низький / середній / високий ризик віджатості\n\n"
                             "Не пропускай пункт Rozetka / Prom. Він обов’язковий у кожній відповіді."
+                        )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": file_url}
+                    }
+                ]
+            }
+        ],
+        max_tokens=900
+    )
+    return response.choices[0].message.content
+
+
+async def generate_search_keywords_from_photo(file_url: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ти експерт з пошуку товарів для товарного бізнесу. "
+                    "Допомагаєш знаходити конкурентів у Facebook Ads Library, AdHeart та на 1688. "
+                    "Пиши тільки українською мовою."
+                )
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "По фото визнач товар і дай відповідь українською мовою в такій структурі:\n\n"
+                            "1. Як називається товар українською\n"
+                            "2. 10 коротких ключових слів для пошуку\n"
+                            "3. 10 словосполучень для пошуку\n"
+                            "4. Як шукати конкурентів у Facebook Ads Library\n"
+                            "5. Як шукати в AdHeart\n"
+                            "6. Які варіанти назви можуть ще використовувати продавці\n\n"
+                            "Пиши максимально практично, без води.\n"
+                            "Даєш багато варіантів, тому що продавці можуть називати один і той самий товар по-різному.\n"
+                            "Особливо звертай увагу на прості слова, синоніми і різні комбінації: по 1 слову, по 2 слова, по 3 слова."
                         )
                     },
                     {
@@ -741,6 +783,11 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Скинь фото товару 👇")
         return
 
+    if text == "🔍 Ключові слова":
+        USER_STATE[user_id] = "search_photo"
+        await update.message.reply_text("Скинь фото товару 👇")
+        return
+
     if update.message.photo and USER_STATE.get(user_id) == "wait_photo":
         photo = update.message.photo[-1].file_id
         file = await context.bot.get_file(photo)
@@ -753,6 +800,22 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(result)
         except Exception:
             await update.message.reply_text("Не вдалося зробити аналіз. Спробуй ще раз.")
+
+        USER_STATE[user_id] = None
+        return
+
+    if update.message.photo and USER_STATE.get(user_id) == "search_photo":
+        photo = update.message.photo[-1].file_id
+        file = await context.bot.get_file(photo)
+        file_url = file.file_path
+
+        await update.message.reply_text("Підбираю ключові слова... ⏳")
+
+        try:
+            result = await generate_search_keywords_from_photo(file_url)
+            await update.message.reply_text(result)
+        except Exception:
+            await update.message.reply_text("Не вдалося підібрати ключові слова. Спробуй ще раз.")
 
         USER_STATE[user_id] = None
         return
