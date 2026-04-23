@@ -1,9 +1,10 @@
 import os
-import sqlite3
 import logging
 import json
 import re
 import requests
+import psycopg2
+from psycopg2.extras import RealDictCursor
 from datetime import datetime, timedelta
 from urllib.parse import quote_plus
 from bs4 import BeautifulSoup
@@ -22,7 +23,7 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
-DB_PATH = os.getenv("BOT_DB_PATH", "bot_access.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
 
 ADMIN_ID = 642635219
 
@@ -30,6 +31,8 @@ if not TOKEN:
     raise RuntimeError("Не знайдено TELEGRAM_BOT_TOKEN")
 if not OPENAI_API_KEY:
     raise RuntimeError("Не знайдено OPENAI_API_KEY")
+if not DATABASE_URL:
+    raise RuntimeError("Не знайдено DATABASE_URL")
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
@@ -273,89 +276,116 @@ CREATIVE_CATEGORIES = {
 
 
 def db_connect():
-    return sqlite3.connect(DB_PATH)
+    return psycopg2.connect(DATABASE_URL, cursor_factory=RealDictCursor)
 
 
 def init_db():
     conn = db_connect()
     cur = conn.cursor()
+
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
-            user_id INTEGER PRIMARY KEY,
+            user_id BIGINT PRIMARY KEY,
             username TEXT,
             full_name TEXT,
-            access_until TEXT,
-            is_admin INTEGER DEFAULT 0,
-            created_at TEXT
+            access_until TIMESTAMP NULL,
+            is_admin BOOLEAN DEFAULT FALSE,
+            created_at TIMESTAMP DEFAULT NOW()
         )
     """)
+
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def ensure_admin():
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("SELECT user_id FROM users WHERE user_id = ?", (ADMIN_ID,))
+
+    cur.execute("SELECT user_id FROM users WHERE user_id = %s", (ADMIN_ID,))
     row = cur.fetchone()
-    now = datetime.utcnow().isoformat()
-    far_future = "2099-12-31T23:59:59"
+
+    far_future = datetime(2099, 12, 31, 23, 59, 59)
+
     if row:
         cur.execute(
-            "UPDATE users SET is_admin = 1, access_until = ? WHERE user_id = ?",
+            """
+            UPDATE users
+            SET is_admin = TRUE,
+                access_until = %s
+            WHERE user_id = %s
+            """,
             (far_future, ADMIN_ID)
         )
     else:
         cur.execute(
             """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (ADMIN_ID, "", "Admin", far_future, 1, now)
+            (ADMIN_ID, "", "Admin", far_future, True)
         )
+
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def touch_user(user_id: int, username: str, full_name: str):
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+
+    cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
-    now = datetime.utcnow().isoformat()
+
     if row:
         cur.execute(
-            "UPDATE users SET username = ?, full_name = ? WHERE user_id = ?",
+            """
+            UPDATE users
+            SET username = %s,
+                full_name = %s
+            WHERE user_id = %s
+            """,
             (username or "", full_name or "", user_id)
         )
     else:
         cur.execute(
             """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (user_id, username or "", full_name or "", "", 0, now)
+            (user_id, username or "", full_name or "", None, False)
         )
+
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def is_admin(user_id: int) -> bool:
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("SELECT is_admin FROM users WHERE user_id = ?", (user_id,))
+
+    cur.execute("SELECT is_admin FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
+
+    cur.close()
     conn.close()
-    return bool(row and row[0] == 1)
+
+    return bool(row and row["is_admin"] is True)
 
 
 def get_user_record(user_id: int):
     conn = db_connect()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+
+    cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
+
+    cur.close()
     conn.close()
+
     return row
 
 
@@ -363,115 +393,142 @@ def has_active_access(user_id: int) -> bool:
     row = get_user_record(user_id)
     if not row:
         return False
-    if row["is_admin"] == 1:
+
+    if row["is_admin"] is True:
         return True
+
     access_until = row["access_until"]
     if not access_until:
         return False
-    try:
-        return datetime.utcnow() <= datetime.fromisoformat(access_until)
-    except Exception:
-        return False
+
+    return datetime.utcnow() <= access_until
 
 
 def add_access_30_days(user_id: int):
     conn = db_connect()
     cur = conn.cursor()
-    cur.execute("SELECT access_until FROM users WHERE user_id = ?", (user_id,))
+
+    cur.execute("SELECT access_until FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
+
     now = datetime.utcnow()
 
     if row:
-        access_until = row[0]
-        try:
-            current_until = datetime.fromisoformat(access_until) if access_until else now
-        except Exception:
-            current_until = now
-        start_from = current_until if current_until > now else now
-        new_until = start_from + timedelta(days=30)
+        current_until = row["access_until"]
+        if current_until and current_until > now:
+            new_until = current_until + timedelta(days=30)
+        else:
+            new_until = now + timedelta(days=30)
+
         cur.execute(
-            "UPDATE users SET access_until = ? WHERE user_id = ?",
-            (new_until.isoformat(), user_id)
+            """
+            UPDATE users
+            SET access_until = %s
+            WHERE user_id = %s
+            """,
+            (new_until, user_id)
         )
     else:
         new_until = now + timedelta(days=30)
         cur.execute(
             """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
+            VALUES (%s, %s, %s, %s, %s)
             """,
-            (user_id, "", "", new_until.isoformat(), 0, now.isoformat())
+            (user_id, "", "", new_until, False)
         )
 
     conn.commit()
+    cur.close()
     conn.close()
+
     return new_until
 
 
 def remove_access(user_id: int):
     conn = db_connect()
     cur = conn.cursor()
-    past_time = (datetime.utcnow() - timedelta(days=1)).isoformat()
+
+    past_time = datetime.utcnow() - timedelta(days=1)
+
     cur.execute(
-        "UPDATE users SET access_until = ? WHERE user_id = ? AND is_admin = 0",
+        """
+        UPDATE users
+        SET access_until = %s
+        WHERE user_id = %s AND is_admin = FALSE
+        """,
         (past_time, user_id)
     )
+
     conn.commit()
+    cur.close()
     conn.close()
 
 
 def list_active_users():
     conn = db_connect()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
-    now = datetime.utcnow().isoformat()
+
     cur.execute(
         """
-        SELECT * FROM users
-        WHERE (is_admin = 1) OR (access_until IS NOT NULL AND access_until != '' AND access_until >= ?)
-        ORDER BY is_admin DESC, access_until ASC
+        SELECT *
+        FROM users
+        WHERE is_admin = TRUE
+           OR (access_until IS NOT NULL AND access_until >= %s)
+        ORDER BY is_admin DESC, access_until ASC NULLS LAST
         """,
-        (now,)
+        (datetime.utcnow(),)
     )
+
     rows = cur.fetchall()
+
+    cur.close()
     conn.close()
+
     return rows
 
 
 def list_expiring_users(days: int = 3):
     conn = db_connect()
-    conn.row_factory = sqlite3.Row
     cur = conn.cursor()
+
     now = datetime.utcnow()
     future = now + timedelta(days=days)
+
     cur.execute(
         """
-        SELECT * FROM users
-        WHERE is_admin = 0
+        SELECT *
+        FROM users
+        WHERE is_admin = FALSE
           AND access_until IS NOT NULL
-          AND access_until != ''
-          AND access_until >= ?
-          AND access_until <= ?
+          AND access_until >= %s
+          AND access_until <= %s
         ORDER BY access_until ASC
         """,
-        (now.isoformat(), future.isoformat())
+        (now, future)
     )
+
     rows = cur.fetchall()
+
+    cur.close()
     conn.close()
+
     return rows
 
 
 def format_user_line(row) -> str:
-    username = row["username"] or "—"
-    full_name = row["full_name"] or "—"
-    access_until = row["access_until"] or "—"
-    admin_label = " (адмін)" if row["is_admin"] == 1 else ""
+    username = row.get("username") or "—"
+    full_name = row.get("full_name") or "—"
+    access_until = row.get("access_until")
+    access_until_str = access_until.strftime("%Y-%m-%d %H:%M:%S") if access_until else "—"
+    admin_label = " (адмін)" if row.get("is_admin") else ""
     username_line = f"@{username}" if username != "—" else "—"
+
     return (
         f"ID: {row['user_id']}{admin_label}\n"
         f"Username: {username_line}\n"
         f"Ім’я: {full_name}\n"
-        f"Доступ до: {access_until}"
+        f"Доступ до: {access_until_str}"
     )
 
 
@@ -879,53 +936,69 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
 
 
 async def generate_market_queries_from_photo(file_url: str) -> dict:
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Ти експерт з товарного бізнесу. "
-                    "Пиши тільки українською мовою. "
-                    "Поверни тільки JSON без пояснень."
-                )
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Подивись на фото товару і поверни JSON у форматі:\n"
-                            "{\n"
-                            '  "main_name": "основна назва товару",\n'
-                            '  "queries": ["запит1", "запит2", "запит3", "запит4", "запит5"]\n'
-                            "}\n\n"
-                            "Запити мають бути короткі, українською мовою, максимально придатні для пошуку на Rozetka і Prom."
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": file_url}
-                    }
-                ]
-            }
-        ],
-        temperature=0.3,
-        max_tokens=300
-    )
-
-    content = response.choices[0].message.content.strip()
-
     try:
-        data = json.loads(content)
-        if "main_name" not in data or "queries" not in data:
-            raise ValueError("Невірний формат JSON")
-        return data
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Ти експерт з товарного бізнесу. "
+                        "Пиши тільки українською мовою. "
+                        "Визнач товар по фото і дай короткі запити для пошуку."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Подивись на фото товару.\n\n"
+                                "Поверни відповідь СТРОГО в такому форматі:\n\n"
+                                "НАЗВА: ...\n"
+                                "ЗАПИТИ: запит1 | запит2 | запит3 | запит4 | запит5\n\n"
+                                "Без пояснень. Без списків. Без зайвого тексту."
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": file_url}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2
+        )
+
+        content = response.choices[0].message.content.strip()
+
+        name = "товар"
+        queries = []
+
+        for line in content.splitlines():
+            line = line.strip()
+
+            if line.startswith("НАЗВА:"):
+                name = line.replace("НАЗВА:", "").strip()
+
+            if line.startswith("ЗАПИТИ:"):
+                raw_queries = line.replace("ЗАПИТИ:", "").strip()
+                queries = [q.strip() for q in raw_queries.split("|") if q.strip()]
+
+        if not queries:
+            queries = [name]
+
+        return {
+            "main_name": name,
+            "queries": queries[:5]
+        }
+
     except Exception:
         return {
             "main_name": "товар",
-            "queries": ["товар", "купити товар", "товар Україна"]
+            "queries": ["товар"]
         }
 
 
@@ -1093,7 +1166,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 new_until = add_access_30_days(target_id)
                 USER_STATE[user_id] = None
                 await update.message.reply_text(
-                    f"✅ Доступ відкрито до:\n{new_until.isoformat()}",
+                    f"✅ Доступ відкрито до:\n{new_until.strftime('%Y-%m-%d %H:%M:%S')}",
                     reply_markup=admin_keyboard()
                 )
             except Exception:
@@ -1106,7 +1179,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
                 new_until = add_access_30_days(target_id)
                 USER_STATE[user_id] = None
                 await update.message.reply_text(
-                    f"✅ Доступ продовжено до:\n{new_until.isoformat()}",
+                    f"✅ Доступ продовжено до:\n{new_until.strftime('%Y-%m-%d %H:%M:%S')}",
                     reply_markup=admin_keyboard()
                 )
             except Exception:
