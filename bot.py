@@ -248,6 +248,42 @@ IMPORTANT_INFO = {
     ),
 }
 
+CREATIVE_CATEGORIES = {
+    "💎 Аксесуари / б'юті": (
+        "Акцент на вау-ефект, красу, стиль, зовнішній вигляд, емоцію, до/після."
+    ),
+    "💅 Манікюр / догляд": (
+        "Акцент на економію часу, зручність вдома, охайність, все потрібне в одному наборі."
+    ),
+    "🛏 Подушки / комфорт": (
+        "Акцент на комфорт, сон, шию, спину, відпочинок після роботи, зняття напруги."
+    ),
+    "📱 Чохли / гаджети": (
+        "Акцент на захист, функціональність, стиль, зручність, магніт, підставку, ударостійкість."
+    ),
+    "🏠 Товари для дому": (
+        "Акцент на порядок, простоту, економію часу, користь щодня, полегшення побуту."
+    ),
+    "🍳 Кухонні товари": (
+        "Акцент на швидкість, легкість, чистоту, зручність, економію часу на кухні."
+    ),
+    "🚗 Авто-товари": (
+        "Акцент на комфорт у машині, безпеку, організацію простору, користь у дорозі."
+    ),
+    "🐶 Товари для тварин": (
+        "Акцент на комфорт тварини, зручність для господаря, менше бруду, більше турботи."
+    ),
+    "🧒 Дитячі товари": (
+        "Акцент на безпеку, спокій батьків, зручність, користь для дитини."
+    ),
+    "🩺 Здоров'я / комфорт": (
+        "Акцент на полегшення, зручність, менше болю/дискомфорту, комфорт щодня."
+    ),
+    "📦 Універсальна категорія": (
+        "Універсальна подача: проблема → рішення → демонстрація → результат → заклик."
+    ),
+}
+
 
 def main_keyboard():
     return ReplyKeyboardMarkup(
@@ -300,10 +336,20 @@ def creatives_keyboard():
             ["✍️ Приклади текстів"],
             ["❌ Помилки"],
             ["🔢 Скільки креативів"],
-            ["✅ Чек-лист"],
+            ["🗂 Категорії креативів"],
+            ["🪝 Ідеї гачків"],
+            ["🎥 Сценарії для відео"],
+            ["🎯 Генератор оффера"],
             ["🤖 Генератор креативів"],
             ["⬅️ Назад"],
         ],
+        resize_keyboard=True
+    )
+
+
+def creative_categories_keyboard():
+    return ReplyKeyboardMarkup(
+        [[q] for q in CREATIVE_CATEGORIES.keys()] + [["⬅️ До креативів"]],
         resize_keyboard=True
     )
 
@@ -371,6 +417,60 @@ async def generate_creatives(user_text: str) -> str:
             },
         ],
         temperature=0.8,
+    )
+    return response.choices[0].message.content
+
+
+async def generate_creative_by_mode(mode: str, category: str, user_text: str) -> str:
+    category_hint = CREATIVE_CATEGORIES.get(category, "")
+
+    if mode == "creative_hooks":
+        task = "Створи 10 сильних рекламних гачків українською мовою."
+    elif mode == "creative_video":
+        task = (
+            "Створи 5 коротких сценаріїв для відео-креативу українською мовою. "
+            "Для кожного сценарію дай: гачок, середину, фінал."
+        )
+    elif mode == "creative_offer":
+        task = (
+            "Створи 5 варіантів оффера українською мовою. "
+            "Для кожного дай: заголовок, підзаголовок, короткий CTA."
+        )
+    else:
+        task = (
+            "Створи 3 гачки, 3 тексти для креативу і 3 ідеї для відео-креативу українською мовою."
+        )
+
+    prompt = f"""
+Ти — маркетинговий асистент для товарного бізнесу.
+
+Категорія товару:
+{category}
+
+Підказка по категорії:
+{category_hint}
+
+Опис товару:
+{user_text}
+
+Завдання:
+{task}
+
+Пиши просто, сильно, без води, під Facebook / Instagram / TikTok.
+"""
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "Ти сильний маркетинговий асистент для товарного бізнесу. Пиши тільки українською мовою."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.9,
     )
     return response.choices[0].message.content
 
@@ -492,14 +592,76 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
+    if text == "🗂 Категорії креативів":
+        USER_STATE[user_id] = None
+        lines = ["Категорії, з якими вже можна працювати:\n"]
+        for key, value in CREATIVE_CATEGORIES.items():
+            lines.append(f"{key}\n— {value}")
+        await update.message.reply_text("\n\n".join(lines))
+        return
+
     if text == "🤖 Генератор креативів":
-        USER_STATE[user_id] = "creative_generator"
+        USER_STATE[user_id] = "choose_category_for_creatives"
+        USER_DATA[user_id] = {"creative_mode": "creative_full"}
         await update.message.reply_text(
-            "Напиши коротко:\n"
-            "що за товар, для кого він і яку проблему вирішує.\n\n"
-            "Наприклад:\n"
-            "Шпилька для густого волосся, для дівчат, які хочуть щоб зачіска трималась весь день"
+            "Обери категорію товару 👇",
+            reply_markup=creative_categories_keyboard()
         )
+        return
+
+    if text == "🪝 Ідеї гачків":
+        USER_STATE[user_id] = "choose_category_for_creatives"
+        USER_DATA[user_id] = {"creative_mode": "creative_hooks"}
+        await update.message.reply_text(
+            "Обери категорію товару для гачків 👇",
+            reply_markup=creative_categories_keyboard()
+        )
+        return
+
+    if text == "🎥 Сценарії для відео":
+        USER_STATE[user_id] = "choose_category_for_creatives"
+        USER_DATA[user_id] = {"creative_mode": "creative_video"}
+        await update.message.reply_text(
+            "Обери категорію товару для сценаріїв 👇",
+            reply_markup=creative_categories_keyboard()
+        )
+        return
+
+    if text == "🎯 Генератор оффера":
+        USER_STATE[user_id] = "choose_category_for_creatives"
+        USER_DATA[user_id] = {"creative_mode": "creative_offer"}
+        await update.message.reply_text(
+            "Обери категорію товару для оффера 👇",
+            reply_markup=creative_categories_keyboard()
+        )
+        return
+
+    if text == "⬅️ До креативів":
+        USER_STATE[user_id] = None
+        USER_DATA[user_id] = {}
+        await update.message.reply_text("Розділ креативів 👇", reply_markup=creatives_keyboard())
+        return
+
+    if USER_STATE.get(user_id) == "choose_category_for_creatives":
+        if text in CREATIVE_CATEGORIES:
+            USER_DATA.setdefault(user_id, {})
+            USER_DATA[user_id]["creative_category"] = text
+            USER_STATE[user_id] = "creative_generator"
+
+            mode = USER_DATA[user_id].get("creative_mode", "creative_full")
+            if mode == "creative_hooks":
+                ask = "Напиши назву товару, для кого він і яку проблему вирішує. Я згенерую гачки 👇"
+            elif mode == "creative_video":
+                ask = "Напиши назву товару, для кого він і яку проблему вирішує. Я згенерую сценарії 👇"
+            elif mode == "creative_offer":
+                ask = "Напиши назву товару, для кого він і яку проблему вирішує. Я згенерую оффери 👇"
+            else:
+                ask = "Напиши назву товару, для кого він і яку проблему вирішує. Я згенерую креативи 👇"
+
+            await update.message.reply_text(ask, reply_markup=creatives_keyboard())
+            return
+
+        await update.message.reply_text("Обери категорію кнопкою 👇", reply_markup=creative_categories_keyboard())
         return
 
     if text == "📦 Розрахувати товар":
@@ -574,13 +736,16 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         return
 
     if USER_STATE.get(user_id) == "creative_generator":
-        await update.message.reply_text("Генерую креативи... ⏳")
+        await update.message.reply_text("Генерую... ⏳")
         try:
-            result = await generate_creatives(text)
+            mode = USER_DATA.get(user_id, {}).get("creative_mode", "creative_full")
+            category = USER_DATA.get(user_id, {}).get("creative_category", "📦 Універсальна категорія")
+            result = await generate_creative_by_mode(mode, category, text)
             await update.message.reply_text(result)
         except Exception as e:
             await update.message.reply_text(f"Помилка генерації: {str(e)}")
         USER_STATE[user_id] = None
+        USER_DATA[user_id] = {}
         return
 
     if text == "📊 Аналіз":
@@ -600,6 +765,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     if text == "⬅️ Назад":
         USER_STATE[user_id] = None
+        USER_DATA[user_id] = {}
         await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
         return
 
