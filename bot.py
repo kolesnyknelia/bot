@@ -764,54 +764,73 @@ async def generate_creative_by_mode(mode: str, category: str, user_text: str) ->
     return response.choices[0].message.content
 
 
-async def analyze_product_from_photo(file_url: str) -> str:
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Ти експерт з товарного бізнесу. "
-                    "Аналізуєш товари для запуску реклами українською мовою."
-                )
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Проаналізуй товар по фото і дай відповідь українською мовою "
-                            "чітко, структуровано і без води.\n\n"
-                            "Обов’язково дай відповідь саме в такому форматі:\n\n"
-                            "1. Що це за товар\n"
-                            "2. Для кого він\n"
-                            "3. Яку проблему вирішує\n"
-                            "4. Рівень конкуренції (низький / середній / високий)\n"
-                            "5. Ідеї для креативів (3 пункти)\n"
-                            "6. Потенційні ризики\n"
-                            "7. Чи варто тестувати\n"
-                            "8. Перевірка Rozetka / Prom — ОБОВ’ЯЗКОВО\n\n"
-                            "У пункті 8 напиши:\n"
-                            "- чи є ризик, що товар уже масово продається\n"
-                            "- чи треба обов’язково вручну перевірити Rozetka і Prom\n"
-                            "- на що саме звернути увагу при перевірці: кількість продавців, ціни, подача, акції, відгуки, наскільки товар виглядає перегрітим\n"
-                            "- короткий висновок: низький / середній / високий ризик віджатості\n\n"
-                            "Не пропускай пункт Rozetka / Prom. Він обов’язковий у кожній відповіді."
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": file_url}
-                    }
-                ]
-            }
-        ],
-        max_tokens=900
-    )
-    return response.choices[0].message.content
+async def generate_market_queries_from_photo(file_url: str) -> dict:
+    try:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": (
+                        "Ти експерт з товарного бізнесу. "
+                        "Пиши тільки українською мовою. "
+                        "Визнач товар по фото і дай короткі запити для пошуку."
+                    )
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Подивись на фото товару.\n\n"
+                                "Поверни відповідь СТРОГО в такому форматі:\n\n"
+                                "НАЗВА: ...\n"
+                                "ЗАПИТИ: запит1 | запит2 | запит3 | запит4 | запит5\n\n"
+                                "Без пояснень. Без списків. Без зайвого тексту."
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": file_url}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=200,
+            temperature=0.2
+        )
 
+        content = response.choices[0].message.content.strip()
+        print("MARKET_RAW_RESPONSE:", content)
 
+        name = "товар"
+        queries = []
+
+        for line in content.splitlines():
+            line = line.strip()
+
+            if line.startswith("НАЗВА:"):
+                name = line.replace("НАЗВА:", "").strip()
+
+            if line.startswith("ЗАПИТИ:"):
+                raw_queries = line.replace("ЗАПИТИ:", "").strip()
+                queries = [q.strip() for q in raw_queries.split("|") if q.strip()]
+
+        if not queries:
+            queries = [name]
+
+        return {
+            "main_name": name,
+            "queries": queries[:5]
+        }
+
+    except Exception as e:
+        print("MARKET_PARSE_ERROR:", str(e))
+        return {
+            "main_name": "товар",
+            "queries": ["товар"]
+        }
 async def generate_search_keywords_from_photo(file_url: str) -> str:
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
