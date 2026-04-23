@@ -996,25 +996,11 @@ async def check_rozetka_prom_from_photo(file_url: str) -> str:
     else:
         recommendation = "товар виглядає перспективніше, конкуренція не критична"
 
-    return (
-        f"🛒 Перевірка Rozetka / Prom\n\n"
-        f"Товар:\n{main_name}\n\n"
-        f"Rozetka:\n"
-        f"— знайдено: {best_rozetka}\n"
-        f"— рівень: {rozetka_level}\n"
-        f"— найкращий запит: {best_rozetka_query or 'не визначено'}\n\n"
-        f"Prom:\n"
-        f"— знайдено: {best_prom}\n"
-        f"— рівень: {prom_level}\n"
-        f"— найкращий запит: {best_prom_query or 'не визначено'}\n\n"
-        f"⚠️ Ризик конкуренції: {risk}\n\n"
-        f"📌 Висновок:\n{recommendation}\n\n"
-        f"Що ще перевірити вручну:\n"
-        f"— ціни\n"
-        f"— однакові фото у продавців\n"
-        f"— акції та знижки\n"
-        f"— подачу товару\n"
-        f"— відгуки"
+       return (
+        f"Товар: {main_name}\n"
+        f"Запити: {', '.join(queries)}\n\n"
+        f"Rozetka: {best_rozetka}\n"
+        f"Prom: {best_prom}"
     )
 
 
