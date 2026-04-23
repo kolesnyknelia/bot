@@ -1,5 +1,7 @@
 import os
+import sqlite3
 import logging
+from datetime import datetime, timedelta
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -15,6 +17,9 @@ logger = logging.getLogger(__name__)
 
 TOKEN = os.getenv("TELEGRAM_BOT_TOKEN")
 OPENAI_API_KEY = os.getenv("OPENAI_API_KEY")
+DB_PATH = os.getenv("BOT_DB_PATH", "bot_access.db")
+
+ADMIN_ID = 642635219
 
 if not TOKEN:
     raise RuntimeError("Не знайдено TELEGRAM_BOT_TOKEN")
@@ -23,8 +28,6 @@ if not OPENAI_API_KEY:
 
 client = OpenAI(api_key=OPENAI_API_KEY)
 
-ACCESS_CODES = {"AAA111", "BBB222", "CCC333"}
-AUTHORIZED_USERS = set()
 USER_STATE = {}
 USER_DATA = {}
 
@@ -32,6 +35,7 @@ USD_TO_UAH = 43
 CNY_TO_UAH = 5.8
 SEA_USD_PER_KG = 5
 AIR_USD_PER_KG = 15
+
 
 FAQ_MODULE_1 = {
     "❓ Таблиця не копіюється": (
@@ -263,13 +267,227 @@ CREATIVE_CATEGORIES = {
 }
 
 
-def main_keyboard():
+def db_connect():
+    return sqlite3.connect(DB_PATH)
+
+
+def init_db():
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS users (
+            user_id INTEGER PRIMARY KEY,
+            username TEXT,
+            full_name TEXT,
+            access_until TEXT,
+            is_admin INTEGER DEFAULT 0,
+            created_at TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def ensure_admin():
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM users WHERE user_id = ?", (ADMIN_ID,))
+    row = cur.fetchone()
+    now = datetime.utcnow().isoformat()
+    far_future = "2099-12-31T23:59:59"
+    if row:
+        cur.execute(
+            "UPDATE users SET is_admin = 1, access_until = ? WHERE user_id = ?",
+            (far_future, ADMIN_ID)
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (ADMIN_ID, "", "Admin", far_future, 1, now)
+        )
+    conn.commit()
+    conn.close()
+
+
+def touch_user(user_id: int, username: str, full_name: str):
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("SELECT user_id FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    now = datetime.utcnow().isoformat()
+    if row:
+        cur.execute(
+            "UPDATE users SET username = ?, full_name = ? WHERE user_id = ?",
+            (username or "", full_name or "", user_id)
+        )
+    else:
+        cur.execute(
+            """
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, username or "", full_name or "", "", 0, now)
+        )
+    conn.commit()
+    conn.close()
+
+
+def is_admin(user_id: int) -> bool:
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("SELECT is_admin FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return bool(row and row[0] == 1)
+
+
+def get_user_record(user_id: int):
+    conn = db_connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    cur.execute("SELECT * FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    conn.close()
+    return row
+
+
+def has_active_access(user_id: int) -> bool:
+    row = get_user_record(user_id)
+    if not row:
+        return False
+    if row["is_admin"] == 1:
+        return True
+    access_until = row["access_until"]
+    if not access_until:
+        return False
+    try:
+        return datetime.utcnow() <= datetime.fromisoformat(access_until)
+    except Exception:
+        return False
+
+
+def add_access_30_days(user_id: int):
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute("SELECT access_until FROM users WHERE user_id = ?", (user_id,))
+    row = cur.fetchone()
+    now = datetime.utcnow()
+
+    if row:
+        access_until = row[0]
+        try:
+            current_until = datetime.fromisoformat(access_until) if access_until else now
+        except Exception:
+            current_until = now
+        start_from = current_until if current_until > now else now
+        new_until = start_from + timedelta(days=30)
+        cur.execute(
+            "UPDATE users SET access_until = ? WHERE user_id = ?",
+            (new_until.isoformat(), user_id)
+        )
+    else:
+        new_until = now + timedelta(days=30)
+        cur.execute(
+            """
+            INSERT INTO users (user_id, username, full_name, access_until, is_admin, created_at)
+            VALUES (?, ?, ?, ?, ?, ?)
+            """,
+            (user_id, "", "", new_until.isoformat(), 0, now.isoformat())
+        )
+
+    conn.commit()
+    conn.close()
+    return new_until
+
+
+def remove_access(user_id: int):
+    conn = db_connect()
+    cur = conn.cursor()
+    past_time = (datetime.utcnow() - timedelta(days=1)).isoformat()
+    cur.execute(
+        "UPDATE users SET access_until = ? WHERE user_id = ? AND is_admin = 0",
+        (past_time, user_id)
+    )
+    conn.commit()
+    conn.close()
+
+
+def list_active_users():
+    conn = db_connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    now = datetime.utcnow().isoformat()
+    cur.execute(
+        """
+        SELECT * FROM users
+        WHERE (is_admin = 1) OR (access_until IS NOT NULL AND access_until != '' AND access_until >= ?)
+        ORDER BY is_admin DESC, access_until ASC
+        """,
+        (now,)
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def list_expiring_users(days: int = 3):
+    conn = db_connect()
+    conn.row_factory = sqlite3.Row
+    cur = conn.cursor()
+    now = datetime.utcnow()
+    future = now + timedelta(days=days)
+    cur.execute(
+        """
+        SELECT * FROM users
+        WHERE is_admin = 0
+          AND access_until IS NOT NULL
+          AND access_until != ''
+          AND access_until >= ?
+          AND access_until <= ?
+        ORDER BY access_until ASC
+        """,
+        (now.isoformat(), future.isoformat())
+    )
+    rows = cur.fetchall()
+    conn.close()
+    return rows
+
+
+def format_user_line(row) -> str:
+    username = row["username"] or "—"
+    full_name = row["full_name"] or "—"
+    access_until = row["access_until"] or "—"
+    admin_label = " (адмін)" if row["is_admin"] == 1 else ""
+    return (
+        f"ID: {row['user_id']}{admin_label}\n"
+        f"Username: @{username if username != '—' else '—'}\n"
+        f"Ім’я: {full_name}\n"
+        f"Доступ до: {access_until}"
+    )
+
+
+def main_keyboard(admin: bool = False):
+    rows = [
+        ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
+        ["❓ FAQ", "🎬 Креативи"],
+        ["📊 Аналіз", "🔍 Ключові слова"],
+        ["💬 Питання", "⚠️ Важлива інформація"],
+    ]
+    if admin:
+        rows.append(["👑 Адмінка"])
+    return ReplyKeyboardMarkup(rows, resize_keyboard=True)
+
+
+def admin_keyboard():
     return ReplyKeyboardMarkup(
         [
-            ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
-            ["❓ FAQ", "🎬 Креативи"],
-            ["📊 Аналіз", "🔍 Ключові слова"],
-            ["💬 Питання", "⚠️ Важлива інформація"],
+            ["➕ Додати доступ", "🔄 Продовжити доступ"],
+            ["❌ Забрати доступ", "🔍 Знайти користувача"],
+            ["📋 Активні користувачі", "⏳ Закінчується скоро"],
+            ["⬅️ Назад"],
         ],
         resize_keyboard=True
     )
@@ -368,17 +586,69 @@ def parse_number(text: str):
         return None
 
 
-async def generate_search_keywords_from_photo(file_url: str) -> str:
+async def generate_creative_by_mode(mode: str, category: str, user_text: str) -> str:
+    category_hint = CREATIVE_CATEGORIES.get(category, "")
+
+    if mode == "creative_hooks":
+        task = "Створи 10 сильних рекламних гачків українською мовою."
+    elif mode == "creative_video":
+        task = (
+            "Створи 5 коротких сценаріїв для відео-креативу українською мовою. "
+            "Для кожного сценарію дай: гачок, середину, фінал."
+        )
+    elif mode == "creative_offer":
+        task = (
+            "Створи 5 варіантів оффера українською мовою. "
+            "Для кожного дай: заголовок, підзаголовок, короткий CTA."
+        )
+    else:
+        task = (
+            "Створи 3 гачки, 3 тексти для креативу і 3 ідеї для відео-креативу українською мовою."
+        )
+
+    prompt = f"""
+Ти — маркетинговий асистент для товарного бізнесу.
+
+Категорія товару:
+{category}
+
+Підказка по категорії:
+{category_hint}
+
+Опис товару:
+{user_text}
+
+Завдання:
+{task}
+
+Пиши просто, сильно, без води, під Facebook / Instagram / TikTok.
+"""
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": "Ти сильний маркетинговий асистент для товарного бізнесу. Пиши тільки українською мовою."
+            },
+            {
+                "role": "user",
+                "content": prompt
+            },
+        ],
+        temperature=0.9,
+    )
+    return response.choices[0].message.content
+
+
+async def analyze_product_from_photo(file_url: str) -> str:
     response = client.chat.completions.create(
         model="gpt-4.1-mini",
         messages=[
             {
                 "role": "system",
                 "content": (
-                    "Ти експерт з пошуку товарів для товарного бізнесу. "
-                    "Допомагаєш знаходити конкурентів у Facebook Ads Library, AdHeart та на 1688. "
-                    "Пиши тільки українською мовою. "
-                    "Використовуй тільки природні українські назви товарів без русизмів, кальок і суржику."
+                    "Ти експерт з товарного бізнесу. "
+                    "Аналізуєш товари для запуску реклами українською мовою."
                 )
             },
             {
@@ -387,23 +657,23 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
                     {
                         "type": "text",
                         "text": (
-                            "По фото визнач товар і дай відповідь тільки українською мовою.\n\n"
-                            "Дуже важливо:\n"
-                            "- використовуй природні українські назви товарів\n"
-                            "- не використовуй русизми, кальки або суржик\n"
-                            "- якщо товар типово українською називається 'каблучка', не пиши 'кільце'\n"
-                            "- якщо товар типово українською називається 'сережки', не пиши російські або змішані варіанти\n"
-                            "- основна назва товару має бути саме тією назвою, якою його найчастіше назве україномовний покупець\n\n"
-                            "Дай відповідь у такій структурі:\n\n"
-                            "1. Основна назва товару українською\n"
-                            "2. Ще 10 українських ключових слів для пошуку\n"
-                            "3. 10 українських словосполучень для пошуку\n"
-                            "4. Як шукати конкурентів у Facebook Ads Library\n"
-                            "5. Як шукати в AdHeart\n"
-                            "6. Які ще варіанти назви можуть використовувати продавці українською\n\n"
-                            "Пиши максимально практично, без води.\n"
-                            "Спочатку давай найприроднішу українську назву, а далі вже близькі варіанти пошуку.\n"
-                            "Для бібліотеки реклами давай прості запити: 1 слово, 2 слова, 3 слова."
+                            "Проаналізуй товар по фото і дай відповідь українською мовою "
+                            "чітко, структуровано і без води.\n\n"
+                            "Обов’язково дай відповідь саме в такому форматі:\n\n"
+                            "1. Що це за товар\n"
+                            "2. Для кого він\n"
+                            "3. Яку проблему вирішує\n"
+                            "4. Рівень конкуренції (низький / середній / високий)\n"
+                            "5. Ідеї для креативів (3 пункти)\n"
+                            "6. Потенційні ризики\n"
+                            "7. Чи варто тестувати\n"
+                            "8. Перевірка Rozetka / Prom — ОБОВ’ЯЗКОВО\n\n"
+                            "У пункті 8 напиши:\n"
+                            "- чи є ризик, що товар уже масово продається\n"
+                            "- чи треба обов’язково вручну перевірити Rozetka і Prom\n"
+                            "- на що саме звернути увагу при перевірці: кількість продавців, ціни, подача, акції, відгуки, наскільки товар виглядає перегрітим\n"
+                            "- короткий висновок: низький / середній / високий ризик віджатості\n\n"
+                            "Не пропускай пункт Rozetka / Prom. Він обов’язковий у кожній відповіді."
                         )
                     },
                     {
@@ -416,6 +686,7 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
         max_tokens=900
     )
     return response.choices[0].message.content
+
 
 async def generate_search_keywords_from_photo(file_url: str) -> str:
     response = client.chat.completions.create(
@@ -463,75 +734,154 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
     )
     return response.choices[0].message.content
 
-async def generate_search_keywords_from_photo(file_url: str) -> str:
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Ти експерт з пошуку товарів для товарного бізнесу. "
-                    "Допомагаєш знаходити конкурентів у Facebook Ads Library, AdHeart та на 1688. "
-                    "Пиши тільки українською мовою."
-                )
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "По фото визнач товар і дай відповідь українською мовою в такій структурі:\n\n"
-                            "1. Як називається товар українською\n"
-                            "2. 10 коротких ключових слів для пошуку\n"
-                            "3. 10 словосполучень для пошуку\n"
-                            "4. Як шукати конкурентів у Facebook Ads Library\n"
-                            "5. Як шукати в AdHeart\n"
-                            "6. Які варіанти назви можуть ще використовувати продавці\n\n"
-                            "Пиши максимально практично, без води.\n"
-                            "Даєш багато варіантів, тому що продавці можуть називати один і той самий товар по-різному.\n"
-                            "Особливо звертай увагу на прості слова, синоніми і різні комбінації: по 1 слову, по 2 слова, по 3 слова."
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": file_url}
-                    }
-                ]
-            }
-        ],
-        max_tokens=900
+
+async def send_main_menu(update: Update, user_id: int):
+    await update.message.reply_text(
+        "Меню 👇",
+        reply_markup=main_keyboard(admin=is_admin(user_id))
     )
-    return response.choices[0].message.content
 
 
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
 
-    if user_id not in AUTHORIZED_USERS:
-        USER_STATE[user_id] = "auth"
-        await update.message.reply_text("Введи код доступу 🔑")
+    touch_user(user_id, user.username or "", user.full_name or "")
+
+    if has_active_access(user_id):
+        USER_STATE[user_id] = None
+        await send_main_menu(update, user_id)
         return
 
-    await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
+    await update.message.reply_text(
+        "Доступ поки не відкритий.\n\n"
+        f"Твій Telegram ID: {user_id}\n\n"
+        "Щоб отримати доступ, надішли цей ID адміну після оплати."
+    )
 
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    user_id = update.effective_user.id
+    user = update.effective_user
+    user_id = user.id
+    touch_user(user_id, user.username or "", user.full_name or "")
 
-    if update.message.text:
-        text = update.message.text.strip()
-    else:
-        text = ""
+    text = update.message.text.strip() if update.message.text else ""
 
-    if user_id not in AUTHORIZED_USERS:
-        if text in ACCESS_CODES:
-            AUTHORIZED_USERS.add(user_id)
-            USER_STATE[user_id] = None
-            await update.message.reply_text("✅ Доступ відкрито", reply_markup=main_keyboard())
-        else:
-            await update.message.reply_text("❌ Невірний код")
+    # Якщо немає доступу, але не /start
+    if not has_active_access(user_id):
+        await update.message.reply_text(
+            "Доступ поки не відкритий або закінчився.\n\n"
+            f"Твій Telegram ID: {user_id}\n\n"
+            "Надішли цей ID адміну для відкриття або продовження доступу."
+        )
         return
+
+    # АДМІНКА
+    if is_admin(user_id):
+        if text == "👑 Адмінка":
+            USER_STATE[user_id] = None
+            await update.message.reply_text("Адмінка 👇", reply_markup=admin_keyboard())
+            return
+
+        if text == "➕ Додати доступ":
+            USER_STATE[user_id] = "admin_add_access"
+            await update.message.reply_text("Введи Telegram ID користувача для відкриття доступу на 30 днів")
+            return
+
+        if text == "🔄 Продовжити доступ":
+            USER_STATE[user_id] = "admin_extend_access"
+            await update.message.reply_text("Введи Telegram ID користувача для продовження доступу на 30 днів")
+            return
+
+        if text == "❌ Забрати доступ":
+            USER_STATE[user_id] = "admin_remove_access"
+            await update.message.reply_text("Введи Telegram ID користувача, якому потрібно закрити доступ")
+            return
+
+        if text == "🔍 Знайти користувача":
+            USER_STATE[user_id] = "admin_find_user"
+            await update.message.reply_text("Введи Telegram ID користувача")
+            return
+
+        if text == "📋 Активні користувачі":
+            rows = list_active_users()
+            if not rows:
+                await update.message.reply_text("Активних користувачів поки немає")
+                return
+            chunks = []
+            for row in rows:
+                chunks.append(format_user_line(row))
+            await update.message.reply_text("\n\n".join(chunks[:30]))
+            return
+
+        if text == "⏳ Закінчується скоро":
+            rows = list_expiring_users(3)
+            if not rows:
+                await update.message.reply_text("У найближчі 3 дні ні в кого не закінчується доступ")
+                return
+            chunks = []
+            for row in rows:
+                chunks.append(format_user_line(row))
+            await update.message.reply_text("\n\n".join(chunks[:30]))
+            return
+
+        if USER_STATE.get(user_id) == "admin_add_access":
+            try:
+                target_id = int(text)
+                new_until = add_access_30_days(target_id)
+                USER_STATE[user_id] = None
+                await update.message.reply_text(
+                    f"✅ Доступ відкрито до:\n{new_until.isoformat()}",
+                    reply_markup=admin_keyboard()
+                )
+            except Exception:
+                await update.message.reply_text("Введи правильний Telegram ID цифрами")
+            return
+
+        if USER_STATE.get(user_id) == "admin_extend_access":
+            try:
+                target_id = int(text)
+                new_until = add_access_30_days(target_id)
+                USER_STATE[user_id] = None
+                await update.message.reply_text(
+                    f"✅ Доступ продовжено до:\n{new_until.isoformat()}",
+                    reply_markup=admin_keyboard()
+                )
+            except Exception:
+                await update.message.reply_text("Введи правильний Telegram ID цифрами")
+            return
+
+        if USER_STATE.get(user_id) == "admin_remove_access":
+            try:
+                target_id = int(text)
+                remove_access(target_id)
+                USER_STATE[user_id] = None
+                await update.message.reply_text(
+                    "✅ Доступ закрито",
+                    reply_markup=admin_keyboard()
+                )
+            except Exception:
+                await update.message.reply_text("Введи правильний Telegram ID цифрами")
+            return
+
+        if USER_STATE.get(user_id) == "admin_find_user":
+            try:
+                target_id = int(text)
+                row = get_user_record(target_id)
+                USER_STATE[user_id] = None
+                if row:
+                    await update.message.reply_text(
+                        format_user_line(row),
+                        reply_markup=admin_keyboard()
+                    )
+                else:
+                    await update.message.reply_text(
+                        "Користувача не знайдено",
+                        reply_markup=admin_keyboard()
+                    )
+            except Exception:
+                await update.message.reply_text("Введи правильний Telegram ID цифрами")
+            return
 
     if text == "❓ FAQ":
         USER_STATE[user_id] = None
@@ -826,13 +1176,16 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "⬅️ Назад":
         USER_STATE[user_id] = None
         USER_DATA[user_id] = {}
-        await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
+        await send_main_menu(update, user_id)
         return
 
-    await update.message.reply_text("Обери кнопку 👇", reply_markup=main_keyboard())
+    await send_main_menu(update, user_id)
 
 
 def main():
+    init_db()
+    ensure_admin()
+
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle))
