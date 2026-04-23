@@ -249,39 +249,17 @@ IMPORTANT_INFO = {
 }
 
 CREATIVE_CATEGORIES = {
-    "💎 Аксесуари / б'юті": (
-        "Акцент на вау-ефект, красу, стиль, зовнішній вигляд, емоцію, до/після."
-    ),
-    "💅 Манікюр / догляд": (
-        "Акцент на економію часу, зручність вдома, охайність, все потрібне в одному наборі."
-    ),
-    "🛏 Подушки / комфорт": (
-        "Акцент на комфорт, сон, шию, спину, відпочинок після роботи, зняття напруги."
-    ),
-    "📱 Чохли / гаджети": (
-        "Акцент на захист, функціональність, стиль, зручність, магніт, підставку, ударостійкість."
-    ),
-    "🏠 Товари для дому": (
-        "Акцент на порядок, простоту, економію часу, користь щодня, полегшення побуту."
-    ),
-    "🍳 Кухонні товари": (
-        "Акцент на швидкість, легкість, чистоту, зручність, економію часу на кухні."
-    ),
-    "🚗 Авто-товари": (
-        "Акцент на комфорт у машині, безпеку, організацію простору, користь у дорозі."
-    ),
-    "🐶 Товари для тварин": (
-        "Акцент на комфорт тварини, зручність для господаря, менше бруду, більше турботи."
-    ),
-    "🧒 Дитячі товари": (
-        "Акцент на безпеку, спокій батьків, зручність, користь для дитини."
-    ),
-    "🩺 Здоров'я / комфорт": (
-        "Акцент на полегшення, зручність, менше болю/дискомфорту, комфорт щодня."
-    ),
-    "📦 Універсальна категорія": (
-        "Універсальна подача: проблема → рішення → демонстрація → результат → заклик."
-    ),
+    "💎 Аксесуари / б'юті": "Акцент на вау-ефект, красу, стиль, зовнішній вигляд, емоцію, до/після.",
+    "💅 Манікюр / догляд": "Акцент на економію часу, зручність вдома, охайність, все потрібне в одному наборі.",
+    "🛏 Подушки / комфорт": "Акцент на комфорт, сон, шию, спину, відпочинок після роботи, зняття напруги.",
+    "📱 Чохли / гаджети": "Акцент на захист, функціональність, стиль, зручність, магніт, підставку, ударостійкість.",
+    "🏠 Товари для дому": "Акцент на порядок, простоту, економію часу, користь щодня, полегшення побуту.",
+    "🍳 Кухонні товари": "Акцент на швидкість, легкість, чистоту, зручність, економію часу на кухні.",
+    "🚗 Авто-товари": "Акцент на комфорт у машині, безпеку, організацію простору, користь у дорозі.",
+    "🐶 Товари для тварин": "Акцент на комфорт тварини, зручність для господаря, менше бруду, більше турботи.",
+    "🧒 Дитячі товари": "Акцент на безпеку, спокій батьків, зручність, користь для дитини.",
+    "🩺 Здоров'я / комфорт": "Акцент на полегшення, зручність, менше болю/дискомфорту, комфорт щодня.",
+    "📦 Універсальна категорія": "Універсальна подача: проблема → рішення → демонстрація → результат → заклик.",
 }
 
 
@@ -390,37 +368,6 @@ def parse_number(text: str):
         return None
 
 
-async def generate_creatives(user_text: str) -> str:
-    prompt = f"""
-Ти — асистент для товарного бізнесу.
-На основі опису товару створи українською мовою:
-
-1. 3 гачки для реклами
-2. 3 короткі тексти для креативу
-3. 3 ідеї для відео-креативу
-
-Пиши просто, продаюче, без води.
-
-Товар / опис:
-{user_text}
-"""
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": "Ти сильний маркетинговий асистент для товарного бізнесу. Пиши українською мовою."
-            },
-            {
-                "role": "user",
-                "content": prompt
-            },
-        ],
-        temperature=0.8,
-    )
-    return response.choices[0].message.content
-
-
 async def generate_creative_by_mode(mode: str, category: str, user_text: str) -> str:
     category_hint = CREATIVE_CATEGORIES.get(category, "")
 
@@ -475,6 +422,54 @@ async def generate_creative_by_mode(mode: str, category: str, user_text: str) ->
     return response.choices[0].message.content
 
 
+async def analyze_product_from_photo(file_url: str) -> str:
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ти експерт з товарного бізнесу. "
+                    "Аналізуєш товари для запуску реклами українською мовою."
+                )
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Проаналізуй товар по фото і дай відповідь українською мовою "
+                            "чітко, структуровано і без води.\n\n"
+                            "Обов’язково дай відповідь саме в такому форматі:\n\n"
+                            "1. Що це за товар\n"
+                            "2. Для кого він\n"
+                            "3. Яку проблему вирішує\n"
+                            "4. Рівень конкуренції (низький / середній / високий)\n"
+                            "5. Ідеї для креативів (3 пункти)\n"
+                            "6. Потенційні ризики\n"
+                            "7. Чи варто тестувати\n"
+                            "8. Перевірка Rozetka / Prom — ОБОВ’ЯЗКОВО\n\n"
+                            "У пункті 8 напиши:\n"
+                            "- чи є ризик, що товар уже масово продається\n"
+                            "- чи треба обов’язково вручну перевірити Rozetka і Prom\n"
+                            "- на що саме звернути увагу при перевірці: кількість продавців, ціни, подача, акції, відгуки, наскільки товар виглядає перегрітим\n"
+                            "- короткий висновок: низький / середній / високий ризик віджатості\n\n"
+                            "Не пропускай пункт Rozetka / Prom. Він обов’язковий у кожній відповіді."
+                        )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": file_url}
+                    }
+                ]
+            }
+        ],
+        max_tokens=900
+    )
+    return response.choices[0].message.content
+
+
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
 
@@ -488,7 +483,11 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
-    text = update.message.text.strip()
+
+    if update.message.text:
+        text = update.message.text.strip()
+    else:
+        text = ""
 
     if user_id not in AUTHORIZED_USERS:
         if text in ACCESS_CODES:
@@ -579,17 +578,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if text == "🔢 Скільки креативів":
         USER_STATE[user_id] = None
         await update.message.reply_text("👉 Робимо 3–5 креативів на товар")
-        return
-
-    if text == "✅ Чек-лист":
-        USER_STATE[user_id] = None
-        await update.message.reply_text(
-            "✔ Є гачок\n"
-            "✔ Є проблема\n"
-            "✔ Є рішення\n"
-            "✔ Є демонстрація\n"
-            "✔ Є заклик"
-        )
         return
 
     if text == "🗂 Категорії креативів":
@@ -742,15 +730,31 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             category = USER_DATA.get(user_id, {}).get("creative_category", "📦 Універсальна категорія")
             result = await generate_creative_by_mode(mode, category, text)
             await update.message.reply_text(result)
-        except Exception as e:
-            await update.message.reply_text(f"Помилка генерації: {str(e)}")
+        except Exception:
+            await update.message.reply_text("Зараз генератор тимчасово недоступний. Перевір баланс OpenAI API.")
         USER_STATE[user_id] = None
         USER_DATA[user_id] = {}
         return
 
     if text == "📊 Аналіз":
+        USER_STATE[user_id] = "wait_photo"
+        await update.message.reply_text("Скинь фото товару 👇")
+        return
+
+    if update.message.photo and USER_STATE.get(user_id) == "wait_photo":
+        photo = update.message.photo[-1].file_id
+        file = await context.bot.get_file(photo)
+        file_url = file.file_path
+
+        await update.message.reply_text("Аналізую товар... ⏳")
+
+        try:
+            result = await analyze_product_from_photo(file_url)
+            await update.message.reply_text(result)
+        except Exception:
+            await update.message.reply_text("Не вдалося зробити аналіз. Спробуй ще раз.")
+
         USER_STATE[user_id] = None
-        await update.message.reply_text("Аналіз товару скоро додамо 📦")
         return
 
     if text == "💬 Питання":
@@ -775,7 +779,7 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 def main():
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle))
+    app.add_handler(MessageHandler(filters.ALL & ~filters.COMMAND, handle))
     app.run_polling()
 
 
