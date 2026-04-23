@@ -191,6 +191,63 @@ FAQ_MODULE_2 = {
     ),
 }
 
+IMPORTANT_INFO = {
+    "📌 Правила роботи": (
+        "Ми працюємо поетапно:\n\n"
+        "- не біжимо вперед уроків\n"
+        "- не запускаємо багато товарів одразу\n"
+        "- не ускладнюємо\n"
+        "- повторюємо по уроках\n\n"
+        "❗ Головне правило:\n"
+        "результат дає не перегляд, а дія"
+    ),
+    "📥 Як здавати домашки": (
+        "Домашки здаємо чітко і без води.\n\n"
+        "Що потрібно:\n"
+        "- скрін або посилання\n"
+        "- короткий опис, що зроблено\n"
+        "- конкретно, без довгих пояснень\n\n"
+        "✅ Приклад:\n"
+        "Зробила сайт, ось посилання. Додала 3 креативи, готова до перевірки.\n\n"
+        "❌ Неправильно:\n"
+        "Я щось пробувала, але не знаю..."
+    ),
+    "💬 Як писати питання": (
+        "Щоб отримати швидку відповідь:\n\n"
+        "- пишемо конкретно\n"
+        "- одне питання = один запит\n"
+        "- без великих історій\n\n"
+        "✅ Приклад:\n"
+        "Не працює реклама, немає показів, відкрутка 0\n\n"
+        "❌ Не так:\n"
+        "Щось не так, не розумію що"
+    ),
+    "🔍 Що перевірити перед зверненням": (
+        "Перед тим як писати питання, перевір:\n\n"
+        "- чи подивилась урок\n"
+        "- чи зробила все по інструкції\n"
+        "- чи перевірила FAQ\n"
+        "- чи немає вже відповіді в боті\n\n"
+        "📌 Часті причини:\n"
+        "- не та дата запуску\n"
+        "- не той піксель\n"
+        "- не збережений сайт\n"
+        "- не той акаунт\n\n"
+        "❗ 80% питань — це не помилка, а неуважність"
+    ),
+    "⚡ Важливо зрозуміти": (
+        "У цьому навчанні:\n\n"
+        "немає чарівної кнопки\n"
+        "немає ідеального товару з першого разу\n\n"
+        "✔ є тест\n"
+        "✔ є помилки\n"
+        "✔ є досвід\n\n"
+        "📌 Підсумок:\n"
+        "Той, хто робить — заробляє.\n"
+        "Той, хто відкладає — стоїть на місці."
+    ),
+}
+
 
 def main_keyboard():
     return ReplyKeyboardMarkup(
@@ -198,6 +255,7 @@ def main_keyboard():
             ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
             ["❓ FAQ", "🎬 Креативи"],
             ["📊 Аналіз", "💬 Питання"],
+            ["⚠️ Важлива інформація"],
         ],
         resize_keyboard=True
     )
@@ -224,6 +282,13 @@ def module1_keyboard():
 def module2_keyboard():
     return ReplyKeyboardMarkup(
         [[q] for q in FAQ_MODULE_2.keys()] + [["⬅️ Назад"]],
+        resize_keyboard=True
+    )
+
+
+def important_info_keyboard():
+    return ReplyKeyboardMarkup(
+        [[q] for q in IMPORTANT_INFO.keys()] + [["⬅️ Назад"]],
         resize_keyboard=True
     )
 
@@ -325,7 +390,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user_id = update.effective_user.id
     text = update.message.text.strip()
 
-    # Авторизація
     if user_id not in AUTHORIZED_USERS:
         if text in ACCESS_CODES:
             AUTHORIZED_USERS.add(user_id)
@@ -335,7 +399,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text("❌ Невірний код")
         return
 
-    # FAQ
     if text == "❓ FAQ":
         USER_STATE[user_id] = None
         await update.message.reply_text("Обери модуль", reply_markup=faq_keyboard())
@@ -351,6 +414,14 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Модуль 2 👇", reply_markup=module2_keyboard())
         return
 
+    if text == "⚠️ Важлива інформація":
+        USER_STATE[user_id] = None
+        await update.message.reply_text(
+            "Обери розділ 👇",
+            reply_markup=important_info_keyboard()
+        )
+        return
+
     if text in FAQ_MODULE_1:
         USER_STATE[user_id] = None
         await update.message.reply_text(FAQ_MODULE_1[text])
@@ -361,7 +432,11 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text(FAQ_MODULE_2[text])
         return
 
-    # Креативи
+    if text in IMPORTANT_INFO:
+        USER_STATE[user_id] = None
+        await update.message.reply_text(IMPORTANT_INFO[text])
+        return
+
     if text == "🎬 Креативи":
         USER_STATE[user_id] = None
         await update.message.reply_text("Обери 👇", reply_markup=creatives_keyboard())
@@ -427,7 +502,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # Розрахунок товару
     if text == "📦 Розрахувати товар":
         USER_STATE[user_id] = "calc"
         await update.message.reply_text(
@@ -449,7 +523,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         USER_STATE[user_id] = None
         return
 
-    # Маржа
     if text == "💰 Розрахувати маржу":
         USER_STATE[user_id] = "margin_sale_price"
         USER_DATA[user_id] = {}
@@ -500,7 +573,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         USER_DATA[user_id] = {}
         return
 
-    # Генератор креативів
     if USER_STATE.get(user_id) == "creative_generator":
         await update.message.reply_text("Генерую креативи... ⏳")
         try:
@@ -511,7 +583,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         USER_STATE[user_id] = None
         return
 
-    # Аналіз / питання
     if text == "📊 Аналіз":
         USER_STATE[user_id] = None
         await update.message.reply_text("Аналіз товару скоро додамо 📦")
@@ -527,7 +598,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         USER_STATE[user_id] = None
         return
 
-    # Назад
     if text == "⬅️ Назад":
         USER_STATE[user_id] = None
         await update.message.reply_text("Меню 👇", reply_markup=main_keyboard())
