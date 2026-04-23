@@ -944,8 +944,11 @@ async def generate_market_queries_from_photo(file_url: str) -> dict:
                     "role": "system",
                     "content": (
                         "Ти експерт з товарного бізнесу. "
-                        "Пиши тільки українською мовою. "
-                        "Визнач товар по фото і дай короткі запити для пошуку."
+                        "Пишеш тільки українською мовою. "
+                        "Твоя задача — по фото визначити товар і дати РЕАЛЬНІ пошукові запити "
+                        "для Rozetka і Prom. "
+                        "Не пиши загальні слова типу 'товар', 'річ', 'штука', 'аксесуар'. "
+                        "Запити мають бути конкретні, живі, людські."
                     )
                 },
                 {
@@ -954,11 +957,15 @@ async def generate_market_queries_from_photo(file_url: str) -> dict:
                         {
                             "type": "text",
                             "text": (
-                                "Подивись на фото товару.\n\n"
-                                "Поверни відповідь СТРОГО в такому форматі:\n\n"
+                                "Подивись на фото товару і поверни відповідь СТРОГО в такому форматі:\n\n"
                                 "НАЗВА: ...\n"
-                                "ЗАПИТИ: запит1 | запит2 | запит3 | запит4 | запит5\n\n"
-                                "Без пояснень. Без списків. Без зайвого тексту."
+                                "ЗАПИТИ: запит1 | запит2 | запит3 | запит4 | запит5 | запит6 | запит7 | запит8\n\n"
+                                "Правила:\n"
+                                "- запити тільки українською\n"
+                                "- без слова 'товар'\n"
+                                "- кожен запит має бути конкретним\n"
+                                "- запити мають підходити для пошуку на Rozetka і Prom\n"
+                                "- дай і основну назву, і живі варіанти, як реально шукають люди"
                             )
                         },
                         {
@@ -968,39 +975,41 @@ async def generate_market_queries_from_photo(file_url: str) -> dict:
                     ]
                 }
             ],
-            max_tokens=200,
-            temperature=0.2
+            max_tokens=250,
+            temperature=0.4
         )
 
         content = response.choices[0].message.content.strip()
 
-        name = "товар"
+        main_name = ""
         queries = []
 
         for line in content.splitlines():
             line = line.strip()
-
             if line.startswith("НАЗВА:"):
-                name = line.replace("НАЗВА:", "").strip()
+                main_name = line.replace("НАЗВА:", "").strip()
+            elif line.startswith("ЗАПИТИ:"):
+                raw = line.replace("ЗАПИТИ:", "").strip()
+                queries = [q.strip() for q in raw.split("|") if q.strip()]
 
-            if line.startswith("ЗАПИТИ:"):
-                raw_queries = line.replace("ЗАПИТИ:", "").strip()
-                queries = [q.strip() for q in raw_queries.split("|") if q.strip()]
+        queries = [q for q in queries if q and q.lower() not in ["товар", "річ", "штука", "аксесуар"]]
+
+        if not main_name:
+            main_name = "невідомий товар"
 
         if not queries:
-            queries = [name]
+            queries = [main_name]
 
         return {
-            "main_name": name,
-            "queries": queries[:5]
+            "main_name": main_name,
+            "queries": queries[:8]
         }
 
     except Exception:
         return {
-            "main_name": "товар",
-            "queries": ["товар"]
+            "main_name": "невідомий товар",
+            "queries": []
         }
-
 
 def check_rozetka_query(query: str) -> int:
     url = f"https://rozetka.com.ua/ua/search/?text={quote_plus(query)}"
@@ -1016,65 +1025,92 @@ def check_prom_query(query: str) -> int:
 
 async def check_rozetka_prom_from_photo(file_url: str) -> str:
     data = await generate_market_queries_from_photo(file_url)
-    main_name = data.get("main_name", "товар")
+    main_name = data.get("main_name", "невідомий товар")
     queries = data.get("queries", [])
 
-    best_rozetka = 0
-    best_prom = 0
-    best_rozetka_query = ""
-    best_prom_query = ""
+    if not queries:
+        return (
+            "🛒 Перевірка Rozetka / Prom\n\n"
+            f"Товар:\n{main_name}\n\n"
+            "Не вдалося згенерувати нормальні пошукові запити.\n"
+            "Спробуй інше фото або перевір вручну."
+        )
 
-    for query in queries[:5]:
+    rozetka_results = []
+    prom_results = []
+
+    for query in queries:
         try:
             r_count = check_rozetka_query(query)
-            if r_count > best_rozetka:
-                best_rozetka = r_count
-                best_rozetka_query = query
+            rozetka_results.append((query, r_count))
         except Exception:
-            pass
+            rozetka_results.append((query, 0))
 
         try:
             p_count = check_prom_query(query)
-            if p_count > best_prom:
-                best_prom = p_count
-                best_prom_query = query
+            prom_results.append((query, p_count))
         except Exception:
-            pass
+            prom_results.append((query, 0))
+
+    best_rozetka_query, best_rozetka = max(rozetka_results, key=lambda x: x[1])
+    best_prom_query, best_prom = max(prom_results, key=lambda x: x[1])
 
     rozetka_level = classify_market_level(best_rozetka, "rozetka")
     prom_level = classify_market_level(best_prom, "prom")
     risk = market_risk_label(best_rozetka, best_prom)
 
     if best_rozetka == 0 and best_prom == 0:
-        recommendation = "товар або слабо представлений, або треба перевірити інші запити вручну"
+        recommendation = (
+            "За цими запитами товар або слабо представлений, або потрібно інше формулювання. "
+            "Спробуй перевірити вручну ще 2–3 варіанти назв."
+        )
     elif risk == "високий":
-        recommendation = "товар вже може бути перегрітий, тестувати тільки з сильним креативом і новим кутом подачі"
+        recommendation = (
+            "Товар вже добре представлений. "
+            "Тестувати можна тільки з сильним креативом, іншим кутом подачі або вигіднішою ціною."
+        )
     elif risk == "середній":
-        recommendation = "можна тестувати, але обов’язково подивитися ціни, подачу і кількість продавців"
+        recommendation = (
+            "Товар уже є на ринку. "
+            "Перед запуском обов’язково перевір ціни, фото, подачу і кількість продавців."
+        )
     else:
-        recommendation = "товар виглядає перспективніше, конкуренція не критична"
+        recommendation = (
+            "Конкуренція не виглядає критичною. "
+            "Можна тестувати, але все одно перевір вручну фото, ціну і подачу конкурентів."
+        )
+
+    top_rozetka = sorted(rozetka_results, key=lambda x: x[1], reverse=True)[:3]
+    top_prom = sorted(prom_results, key=lambda x: x[1], reverse=True)[:3]
+
+    rozetka_lines = "\n".join([f"— {q}: {c}" for q, c in top_rozetka])
+    prom_lines = "\n".join([f"— {q}: {c}" for q, c in top_prom])
+
+    used_queries = "\n".join([f"— {q}" for q in queries])
 
     return (
         f"🛒 Перевірка Rozetka / Prom\n\n"
         f"Товар:\n{main_name}\n\n"
+        f"Запити, якими шукали:\n{used_queries}\n\n"
         f"Rozetka:\n"
+        f"— найкращий запит: {best_rozetka_query}\n"
         f"— знайдено: {best_rozetka}\n"
-        f"— рівень: {rozetka_level}\n"
-        f"— найкращий запит: {best_rozetka_query or 'не визначено'}\n\n"
+        f"— рівень: {rozetka_level}\n\n"
+        f"Топ-3 запити Rozetka:\n{rozetka_lines}\n\n"
         f"Prom:\n"
+        f"— найкращий запит: {best_prom_query}\n"
         f"— знайдено: {best_prom}\n"
-        f"— рівень: {prom_level}\n"
-        f"— найкращий запит: {best_prom_query or 'не визначено'}\n\n"
+        f"— рівень: {prom_level}\n\n"
+        f"Топ-3 запити Prom:\n{prom_lines}\n\n"
         f"⚠️ Ризик конкуренції: {risk}\n\n"
         f"📌 Висновок:\n{recommendation}\n\n"
         f"Що ще перевірити вручну:\n"
         f"— ціни\n"
         f"— однакові фото у продавців\n"
         f"— акції та знижки\n"
-        f"— подачу товару\n"
-        f"— відгуки"
+        f"— відгуки\n"
+        f"— як саме подають товар конкуренти"
     )
-
 
 async def send_main_menu(update: Update, user_id: int):
     await update.message.reply_text(
