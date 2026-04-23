@@ -1,7 +1,12 @@
 import os
 import sqlite3
 import logging
+import json
+import re
+import requests
 from datetime import datetime, timedelta
+from urllib.parse import quote_plus
+from bs4 import BeautifulSoup
 from telegram import Update, ReplyKeyboardMarkup
 from telegram.ext import (
     Application,
@@ -461,12 +466,130 @@ def format_user_line(row) -> str:
     full_name = row["full_name"] or "—"
     access_until = row["access_until"] or "—"
     admin_label = " (адмін)" if row["is_admin"] == 1 else ""
+    username_line = f"@{username}" if username != "—" else "—"
     return (
         f"ID: {row['user_id']}{admin_label}\n"
-        f"Username: @{username if username != '—' else '—'}\n"
+        f"Username: {username_line}\n"
         f"Ім’я: {full_name}\n"
         f"Доступ до: {access_until}"
     )
+
+
+def classify_market_level(count: int, market: str) -> str:
+    if market == "rozetka":
+        if count <= 10:
+            return "мало"
+        elif count <= 50:
+            return "середньо"
+        return "багато"
+
+    if market == "prom":
+        if count <= 50:
+            return "мало"
+        elif count <= 200:
+            return "середньо"
+        return "багато"
+
+    return "невідомо"
+
+
+def market_risk_label(rozetka_count: int, prom_count: int) -> str:
+    score = 0
+
+    if rozetka_count > 50:
+        score += 2
+    elif rozetka_count > 10:
+        score += 1
+
+    if prom_count > 200:
+        score += 2
+    elif prom_count > 50:
+        score += 1
+
+    if score <= 1:
+        return "низький"
+    elif score <= 3:
+        return "середній"
+    return "високий"
+
+
+def safe_request(url: str) -> str:
+    headers = {
+        "User-Agent": "Mozilla/5.0",
+        "Accept-Language": "uk-UA,uk;q=0.9,en;q=0.8",
+    }
+    response = requests.get(url, headers=headers, timeout=20)
+    response.raise_for_status()
+    return response.text
+
+
+def parse_rozetka_count(html: str) -> int:
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True)
+
+    patterns = [
+        r"Знайдено\s+(\d+)",
+        r"знайдено\s+(\d+)",
+        r"(\d+)\s+товар",
+        r"(\d+)\s+результат",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                return int(match.group(1))
+            except Exception:
+                pass
+
+    selectors = [
+        '[data-testid="goods-list"] [data-goods-id]',
+        '.goods-tile',
+        '.catalog-grid li',
+        '.tile',
+    ]
+
+    for selector in selectors:
+        found = soup.select(selector)
+        if found:
+            return len(found)
+
+    return 0
+
+
+def parse_prom_count(html: str) -> int:
+    soup = BeautifulSoup(html, "html.parser")
+    text = soup.get_text(" ", strip=True)
+
+    patterns = [
+        r"Знайдено\s+(\d+)",
+        r"знайдено\s+(\d+)",
+        r"(\d+)\s+товар",
+        r"(\d+)\s+позиці",
+        r"(\d+)\s+результат",
+    ]
+
+    for pattern in patterns:
+        match = re.search(pattern, text, re.IGNORECASE)
+        if match:
+            try:
+                return int(match.group(1))
+            except Exception:
+                pass
+
+    selectors = [
+        '[data-qaid="product_block"]',
+        '.M3v0L',
+        '.x-product-card',
+        '.catalog-item',
+    ]
+
+    for selector in selectors:
+        found = soup.select(selector)
+        if found:
+            return len(found)
+
+    return 0
 
 
 def main_keyboard(admin: bool = False):
@@ -474,7 +597,8 @@ def main_keyboard(admin: bool = False):
         ["📦 Розрахувати товар", "💰 Розрахувати маржу"],
         ["❓ FAQ", "🎬 Креативи"],
         ["📊 Аналіз", "🔍 Ключові слова"],
-        ["💬 Питання", "⚠️ Важлива інформація"],
+        ["🛒 Перевірити Rozetka / Prom", "💬 Питання"],
+        ["⚠️ Важлива інформація"],
     ]
     if admin:
         rows.append(["👑 Адмінка"])
@@ -735,6 +859,131 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
     return response.choices[0].message.content
 
 
+async def generate_market_queries_from_photo(file_url: str) -> dict:
+    response = client.chat.completions.create(
+        model="gpt-4.1-mini",
+        messages=[
+            {
+                "role": "system",
+                "content": (
+                    "Ти експерт з товарного бізнесу. "
+                    "Пиши тільки українською мовою. "
+                    "Поверни тільки JSON без пояснень."
+                )
+            },
+            {
+                "role": "user",
+                "content": [
+                    {
+                        "type": "text",
+                        "text": (
+                            "Подивись на фото товару і поверни JSON у форматі:\n"
+                            "{\n"
+                            '  "main_name": "основна назва товару",\n'
+                            '  "queries": ["запит1", "запит2", "запит3", "запит4", "запит5"]\n'
+                            "}\n\n"
+                            "Запити мають бути короткі, українською мовою, максимально придатні для пошуку на Rozetka і Prom."
+                        )
+                    },
+                    {
+                        "type": "image_url",
+                        "image_url": {"url": file_url}
+                    }
+                ]
+            }
+        ],
+        temperature=0.3,
+        max_tokens=300
+    )
+
+    content = response.choices[0].message.content.strip()
+
+    try:
+        data = json.loads(content)
+        if "main_name" not in data or "queries" not in data:
+            raise ValueError("Невірний формат JSON")
+        return data
+    except Exception:
+        return {
+            "main_name": "товар",
+            "queries": ["товар", "купити товар", "товар Україна"]
+        }
+
+
+def check_rozetka_query(query: str) -> int:
+    url = f"https://rozetka.com.ua/ua/search/?text={quote_plus(query)}"
+    html = safe_request(url)
+    return parse_rozetka_count(html)
+
+
+def check_prom_query(query: str) -> int:
+    url = f"https://prom.ua/ua/search?search_term={quote_plus(query)}"
+    html = safe_request(url)
+    return parse_prom_count(html)
+
+
+async def check_rozetka_prom_from_photo(file_url: str) -> str:
+    data = await generate_market_queries_from_photo(file_url)
+    main_name = data.get("main_name", "товар")
+    queries = data.get("queries", [])
+
+    best_rozetka = 0
+    best_prom = 0
+    best_rozetka_query = ""
+    best_prom_query = ""
+
+    for query in queries[:5]:
+        try:
+            r_count = check_rozetka_query(query)
+            if r_count > best_rozetka:
+                best_rozetka = r_count
+                best_rozetka_query = query
+        except Exception:
+            pass
+
+        try:
+            p_count = check_prom_query(query)
+            if p_count > best_prom:
+                best_prom = p_count
+                best_prom_query = query
+        except Exception:
+            pass
+
+    rozetka_level = classify_market_level(best_rozetka, "rozetka")
+    prom_level = classify_market_level(best_prom, "prom")
+    risk = market_risk_label(best_rozetka, best_prom)
+
+    if best_rozetka == 0 and best_prom == 0:
+        recommendation = "товар або слабо представлений, або треба перевірити інші запити вручну"
+    elif risk == "високий":
+        recommendation = "товар вже може бути перегрітий, тестувати тільки з сильним креативом і новим кутом подачі"
+    elif risk == "середній":
+        recommendation = "можна тестувати, але обов’язково подивитися ціни, подачу і кількість продавців"
+    else:
+        recommendation = "товар виглядає перспективніше, конкуренція не критична"
+
+    return (
+        f"🛒 Перевірка Rozetka / Prom\n\n"
+        f"Товар:\n{main_name}\n\n"
+        f"Rozetka:\n"
+        f"— знайдено: {best_rozetka}\n"
+        f"— рівень: {rozetka_level}\n"
+        f"— найкращий запит: {best_rozetka_query or 'не визначено'}\n\n"
+        f"Prom:\n"
+        f"— знайдено: {best_prom}\n"
+        f"— рівень: {prom_level}\n"
+        f"— найкращий запит: {best_prom_query or 'не визначено'}\n\n"
+        f"⚠️ Ризик конкуренції: {risk}\n\n"
+        f"📌 Висновок:\n{recommendation}\n\n"
+        f"Що ще перевірити вручну:\n"
+        f"— ціни\n"
+        f"— однакові фото у продавців\n"
+        f"— акції та знижки\n"
+        f"— подачу товару\n"
+        f"— відгуки"
+    )
+
+
 async def send_main_menu(update: Update, user_id: int):
     await update.message.reply_text(
         "Меню 👇",
@@ -767,7 +1016,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     text = update.message.text.strip() if update.message.text else ""
 
-    # Якщо немає доступу, але не /start
     if not has_active_access(user_id):
         await update.message.reply_text(
             "Доступ поки не відкритий або закінчився.\n\n"
@@ -776,7 +1024,6 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         )
         return
 
-    # АДМІНКА
     if is_admin(user_id):
         if text == "👑 Адмінка":
             USER_STATE[user_id] = None
@@ -808,10 +1055,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not rows:
                 await update.message.reply_text("Активних користувачів поки немає")
                 return
-            chunks = []
-            for row in rows:
-                chunks.append(format_user_line(row))
-            await update.message.reply_text("\n\n".join(chunks[:30]))
+            chunks = [format_user_line(row) for row in rows[:30]]
+            await update.message.reply_text("\n\n".join(chunks))
             return
 
         if text == "⏳ Закінчується скоро":
@@ -819,10 +1064,8 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             if not rows:
                 await update.message.reply_text("У найближчі 3 дні ні в кого не закінчується доступ")
                 return
-            chunks = []
-            for row in rows:
-                chunks.append(format_user_line(row))
-            await update.message.reply_text("\n\n".join(chunks[:30]))
+            chunks = [format_user_line(row) for row in rows[:30]]
+            await update.message.reply_text("\n\n".join(chunks))
             return
 
         if USER_STATE.get(user_id) == "admin_add_access":
@@ -1131,6 +1374,11 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("Скинь фото товару 👇")
         return
 
+    if text == "🛒 Перевірити Rozetka / Prom":
+        USER_STATE[user_id] = "market_photo"
+        await update.message.reply_text("Скинь фото товару 👇")
+        return
+
     if update.message.photo and USER_STATE.get(user_id) == "wait_photo":
         photo = update.message.photo[-1].file_id
         file = await context.bot.get_file(photo)
@@ -1159,6 +1407,22 @@ async def handle(update: Update, context: ContextTypes.DEFAULT_TYPE):
             await update.message.reply_text(result)
         except Exception:
             await update.message.reply_text("Не вдалося підібрати ключові слова. Спробуй ще раз.")
+
+        USER_STATE[user_id] = None
+        return
+
+    if update.message.photo and USER_STATE.get(user_id) == "market_photo":
+        photo = update.message.photo[-1].file_id
+        file = await context.bot.get_file(photo)
+        file_url = file.file_path
+
+        await update.message.reply_text("Перевіряю Rozetka / Prom... ⏳")
+
+        try:
+            result = await check_rozetka_prom_from_photo(file_url)
+            await update.message.reply_text(result)
+        except Exception:
+            await update.message.reply_text("Не вдалося перевірити Rozetka / Prom. Спробуй ще раз.")
 
         USER_STATE[user_id] = None
         return
