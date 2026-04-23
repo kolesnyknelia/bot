@@ -860,53 +860,68 @@ async def generate_search_keywords_from_photo(file_url: str) -> str:
 
 
 async def generate_market_queries_from_photo(file_url: str) -> dict:
-    response = client.chat.completions.create(
-        model="gpt-4.1-mini",
-        messages=[
-            {
-                "role": "system",
-                "content": (
-                    "Ти експерт з товарного бізнесу. "
-                    "Пиши тільки українською мовою. "
-                    "Поверни тільки JSON без пояснень."
-                )
-            },
-            {
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Подивись на фото товару і поверни JSON у форматі:\n"
-                            "{\n"
-                            '  "main_name": "основна назва товару",\n'
-                            '  "queries": ["запит1", "запит2", "запит3", "запит4", "запит5"]\n'
-                            "}\n\n"
-                            "Запити мають бути короткі, українською мовою, максимально придатні для пошуку на Rozetka і Prom."
-                        )
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": file_url}
-                    }
-                ]
-            }
-        ],
-        temperature=0.3,
-        max_tokens=300
-    )
-
-    content = response.choices[0].message.content.strip()
-
     try:
-        data = json.loads(content)
-        if "main_name" not in data or "queries" not in data:
-            raise ValueError("Невірний формат JSON")
-        return data
-    except Exception:
+        response = client.chat.completions.create(
+            model="gpt-4.1-mini",
+            messages=[
+                {
+                    "role": "system",
+                    "content": "Ти експерт з товарного бізнесу. Пиши українською."
+                },
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": (
+                                "Подивись на фото і напиши:\n"
+                                "1. Назву товару\n"
+                                "2. 5 коротких запитів для пошуку\n\n"
+                                "Формат:\n"
+                                "Назва: ...\n"
+                                "Запити:\n"
+                                "- ...\n"
+                                "- ...\n"
+                                "- ..."
+                            )
+                        },
+                        {
+                            "type": "image_url",
+                            "image_url": {"url": file_url}
+                        }
+                    ]
+                }
+            ],
+            max_tokens=300
+        )
+
+        content = response.choices[0].message.content
+
+        # Проста обробка (без JSON)
+        lines = content.split("\n")
+
+        name = "товар"
+        queries = []
+
+        for line in lines:
+            if "Назва" in line:
+                name = line.split(":")[-1].strip()
+            if "-" in line:
+                queries.append(line.replace("-", "").strip())
+
+        if not queries:
+            queries = [name]
+
         return {
-            "main_name": "товар",
-            "queries": ["товар", "купити товар", "товар Україна"]
+            "main_name": name,
+            "queries": queries[:5]
+        }
+
+    except Exception as e:
+        print("ERROR:", e)
+        return {
+            "main_name": "невідомий товар",
+            "queries": ["каблучка", "товар", "купити товар"]
         }
 
 
