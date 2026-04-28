@@ -731,23 +731,33 @@ def creative_categories_keyboard():
     )
 
 
-def calculate_product_cost(price_yuan: float, weight_g: float) -> str:
-    purchase_uah = price_yuan * CNY_TO_UAH
-    weight_kg = weight_g / 1000
+def calculate_units_and_cost(weight_grams, price_yuan, rate=5.8):
+    if weight_grams <= 0:
+        return "Помилка: вага має бути більше 0"
 
-    sea_delivery = weight_kg * SEA_USD_PER_KG * USD_TO_UAH
-    air_delivery = weight_kg * AIR_USD_PER_KG * USD_TO_UAH
+    # скільки штук в 1 кг
+    units_per_kg = round(1000 / weight_grams, 2)
 
-    total_sea = purchase_uah + sea_delivery
-    total_air = purchase_uah + air_delivery
+    # ціна товару в грн
+    price_uah = price_yuan * rate
 
-    return (
-        f"💰 Викуп: {purchase_uah:.2f} грн\n"
-        f"⚖️ Вага: {weight_g:.0f} г\n\n"
-        f"🚢 Ціна товару з доставкою (море): {total_sea:.2f} грн\n"
-        f"✈️ Ціна товару з доставкою (авіа): {total_air:.2f} грн"
-    )
+    # доставка
+    sea_delivery_per_kg = 5 * 42   # море
+    air_delivery_per_kg = 15 * 42  # авіа
 
+    # доставка за 1 штуку
+    sea_per_unit = sea_delivery_per_kg / units_per_kg
+    air_per_unit = air_delivery_per_kg / units_per_kg
+
+    # повна собівартість
+    sea_total = round(price_uah + sea_per_unit, 2)
+    air_total = round(price_uah + air_per_unit, 2)
+
+    return {
+        "units_per_kg": units_per_kg,
+        "sea_cost": sea_total,
+        "air_cost": air_total
+    }
 
 def parse_calc_input(text: str):
     parts = text.replace(",", ".").split()
