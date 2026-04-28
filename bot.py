@@ -282,7 +282,6 @@ def db_connect():
 def init_db():
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute("""
         CREATE TABLE IF NOT EXISTS users (
             user_id BIGINT PRIMARY KEY,
@@ -293,7 +292,6 @@ def init_db():
             created_at TIMESTAMP DEFAULT NOW()
         )
     """)
-
     conn.commit()
     cur.close()
     conn.close()
@@ -302,28 +300,18 @@ def init_db():
 def ensure_admin():
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute("SELECT user_id FROM users WHERE user_id = %s", (ADMIN_ID,))
     row = cur.fetchone()
-
     far_future = datetime(2099, 12, 31, 23, 59, 59)
 
     if row:
         cur.execute(
-            """
-            UPDATE users
-            SET is_admin = TRUE,
-                access_until = %s
-            WHERE user_id = %s
-            """,
+            "UPDATE users SET is_admin = TRUE, access_until = %s WHERE user_id = %s",
             (far_future, ADMIN_ID)
         )
     else:
         cur.execute(
-            """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
+            "INSERT INTO users (user_id, username, full_name, access_until, is_admin) VALUES (%s, %s, %s, %s, %s)",
             (ADMIN_ID, "", "Admin", far_future, True)
         )
 
@@ -335,26 +323,17 @@ def ensure_admin():
 def touch_user(user_id: int, username: str, full_name: str):
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute("SELECT user_id FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
 
     if row:
         cur.execute(
-            """
-            UPDATE users
-            SET username = %s,
-                full_name = %s
-            WHERE user_id = %s
-            """,
+            "UPDATE users SET username = %s, full_name = %s WHERE user_id = %s",
             (username or "", full_name or "", user_id)
         )
     else:
         cur.execute(
-            """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
+            "INSERT INTO users (user_id, username, full_name, access_until, is_admin) VALUES (%s, %s, %s, %s, %s)",
             (user_id, username or "", full_name or "", None, False)
         )
 
@@ -364,28 +343,17 @@ def touch_user(user_id: int, username: str, full_name: str):
 
 
 def is_admin(user_id: int) -> bool:
-    conn = db_connect()
-    cur = conn.cursor()
-
-    cur.execute("SELECT is_admin FROM users WHERE user_id = %s", (user_id,))
-    row = cur.fetchone()
-
-    cur.close()
-    conn.close()
-
+    row = get_user_record(user_id)
     return bool(row and row["is_admin"] is True)
 
 
 def get_user_record(user_id: int):
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute("SELECT * FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
-
     cur.close()
     conn.close()
-
     return row
 
 
@@ -393,24 +361,19 @@ def has_active_access(user_id: int) -> bool:
     row = get_user_record(user_id)
     if not row:
         return False
-
     if row["is_admin"] is True:
         return True
-
     access_until = row["access_until"]
     if not access_until:
         return False
-
     return datetime.utcnow() <= access_until
 
 
 def add_access_30_days(user_id: int):
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute("SELECT access_until FROM users WHERE user_id = %s", (user_id,))
     row = cur.fetchone()
-
     now = datetime.utcnow()
 
     if row:
@@ -421,42 +384,29 @@ def add_access_30_days(user_id: int):
             new_until = now + timedelta(days=30)
 
         cur.execute(
-            """
-            UPDATE users
-            SET access_until = %s
-            WHERE user_id = %s
-            """,
+            "UPDATE users SET access_until = %s WHERE user_id = %s",
             (new_until, user_id)
         )
     else:
         new_until = now + timedelta(days=30)
         cur.execute(
-            """
-            INSERT INTO users (user_id, username, full_name, access_until, is_admin)
-            VALUES (%s, %s, %s, %s, %s)
-            """,
+            "INSERT INTO users (user_id, username, full_name, access_until, is_admin) VALUES (%s, %s, %s, %s, %s)",
             (user_id, "", "", new_until, False)
         )
 
     conn.commit()
     cur.close()
     conn.close()
-
     return new_until
 
 
 def remove_access(user_id: int):
     conn = db_connect()
     cur = conn.cursor()
-
     past_time = datetime.utcnow() - timedelta(days=1)
 
     cur.execute(
-        """
-        UPDATE users
-        SET access_until = %s
-        WHERE user_id = %s AND is_admin = FALSE
-        """,
+        "UPDATE users SET access_until = %s WHERE user_id = %s AND is_admin = FALSE",
         (past_time, user_id)
     )
 
@@ -468,7 +418,6 @@ def remove_access(user_id: int):
 def list_active_users():
     conn = db_connect()
     cur = conn.cursor()
-
     cur.execute(
         """
         SELECT *
@@ -479,19 +428,15 @@ def list_active_users():
         """,
         (datetime.utcnow(),)
     )
-
     rows = cur.fetchall()
-
     cur.close()
     conn.close()
-
     return rows
 
 
 def list_expiring_users(days: int = 3):
     conn = db_connect()
     cur = conn.cursor()
-
     now = datetime.utcnow()
     future = now + timedelta(days=days)
 
@@ -509,10 +454,8 @@ def list_expiring_users(days: int = 3):
     )
 
     rows = cur.fetchall()
-
     cur.close()
     conn.close()
-
     return rows
 
 
@@ -731,33 +674,34 @@ def creative_categories_keyboard():
     )
 
 
-def calculate_units_and_cost(weight_grams, price_yuan, rate=5.8):
-    if weight_grams <= 0:
+def calculate_product_cost(price_yuan: float, weight_g: float) -> str:
+    if weight_g <= 0:
         return "Помилка: вага має бути більше 0"
 
-    # скільки штук в 1 кг
-    units_per_kg = round(1000 / weight_grams, 2)
+    purchase_uah = price_yuan * CNY_TO_UAH
+    weight_kg = weight_g / 1000
 
-    # ціна товару в грн
-    price_uah = price_yuan * rate
+    units_per_kg = 1000 / weight_g
 
-    # доставка
-    sea_delivery_per_kg = 5 * 42   # море
-    air_delivery_per_kg = 15 * 42  # авіа
+    sea_delivery_per_unit = weight_kg * SEA_USD_PER_KG * USD_TO_UAH
+    air_delivery_per_unit = weight_kg * AIR_USD_PER_KG * USD_TO_UAH
 
-    # доставка за 1 штуку
-    sea_per_unit = sea_delivery_per_kg / units_per_kg
-    air_per_unit = air_delivery_per_kg / units_per_kg
+    total_sea = purchase_uah + sea_delivery_per_unit
+    total_air = purchase_uah + air_delivery_per_unit
 
-    # повна собівартість
-    sea_total = round(price_uah + sea_per_unit, 2)
-    air_total = round(price_uah + air_per_unit, 2)
+    return (
+        f"📦 Розрахунок товару\n\n"
+        f"💰 Ціна товару: {price_yuan:.2f} ¥ = {purchase_uah:.2f} грн\n"
+        f"⚖️ Вага 1 шт: {weight_g:.0f} г\n"
+        f"📦 Штук в 1 кг: {units_per_kg:.2f}\n\n"
+        f"🚢 Море:\n"
+        f"Доставка за 1 шт: {sea_delivery_per_unit:.2f} грн\n"
+        f"Собівартість з морем: {total_sea:.2f} грн\n\n"
+        f"✈️ Авіа:\n"
+        f"Доставка за 1 шт: {air_delivery_per_unit:.2f} грн\n"
+        f"Собівартість з авіа: {total_air:.2f} грн"
+    )
 
-    return {
-        "units_per_kg": units_per_kg,
-        "sea_cost": sea_total,
-        "air_cost": air_total
-    }
 
 def parse_calc_input(text: str):
     parts = text.replace(",", ".").split()
@@ -1021,6 +965,7 @@ async def generate_market_queries_from_photo(file_url: str) -> dict:
             "queries": []
         }
 
+
 def check_rozetka_query(query: str) -> int:
     url = f"https://rozetka.com.ua/ua/search/?text={quote_plus(query)}"
     html = safe_request(url)
@@ -1095,7 +1040,6 @@ async def check_rozetka_prom_from_photo(file_url: str) -> str:
 
     rozetka_lines = "\n".join([f"— {q}: {c}" for q, c in top_rozetka])
     prom_lines = "\n".join([f"— {q}: {c}" for q, c in top_prom])
-
     used_queries = "\n".join([f"— {q}" for q in queries])
 
     return (
@@ -1121,6 +1065,7 @@ async def check_rozetka_prom_from_photo(file_url: str) -> str:
         f"— відгуки\n"
         f"— як саме подають товар конкуренти"
     )
+
 
 async def send_main_menu(update: Update, user_id: int):
     await update.message.reply_text(
